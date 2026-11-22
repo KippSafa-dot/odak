@@ -1,0 +1,2659 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Odak">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/ikon.png">
+<title>Odak</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; background: #000000; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    color: #4a4a4a;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;      /* Safari'de adres çubuğu açılıp kapanınca bile ekrana tam oturur */
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  /* ── Sahne: video + (isteğe bağlı) liste ── */
+  .stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: 20px;
+    padding: 2vh 2vw 0;
+    transition: padding 0.25s ease;
+  }
+
+  .video {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    container-type: size;
+  }
+
+  /* Hem genişliğe hem yüksekliğe sığan en büyük 16:9 kutu */
+  .player {
+    width: min(100cqw, calc(100cqh * 16 / 9));
+    aspect-ratio: 16 / 9;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+  }
+  .player iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+  /* ── Oynatma listesi ── */
+  .listwrap { width: 340px; flex-shrink: 0; min-height: 0; display: flex; flex-direction: column; }
+  .listwrap[hidden] { display: none; }
+  .lf { display: flex; align-items: center; gap: 12px; padding: 0 6px 8px 8px; }
+  .lf input {
+    flex: 1; min-width: 0; border: 0; border-bottom: 1px solid #161616; outline: none;
+    color: #8a8a8a; font: inherit; font-size: 13px; padding: 4px 0;
+  }
+  .lf input:focus { border-bottom-color: #3f6aa8; }
+  .lf input::placeholder { color: #2f2f2f; }
+  .lf button { border: none; outline: none; cursor: pointer; font: inherit; font-size: 12px; color: #3a3a3a; padding: 4px 2px; }
+  .lf button:hover { color: #7a7a7a; }
+  .lf button.on { color: #7fb0ff; }
+  .list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #1e1e1e #000000;
+    transition: opacity 0.2s ease;
+  }
+  .list[hidden] { display: none; }
+  .list.loading { opacity: 0.35; pointer-events: none; }
+
+  .item {
+    display: flex;
+    align-items: baseline;
+    cursor: pointer;
+    font-size: 13.5px;
+    line-height: 1.35;
+    color: #4a4a4a;
+    padding: 7px 4px 7px 8px;
+    transition: color 0.15s ease;
+  }
+  .item:hover { color: #8a8a8a; }
+  .item.current { color: #7fb0ff; }
+  .item[hidden] { display: none; }
+  .item .n { min-width: 2.6em; opacity: 0.6; }
+  .item .nt { font-size: 11px; color: #3a3a3a; margin: 0 4px 0 6px; white-space: nowrap; }
+  .item .a {
+    width: 1.8em; text-align: center; flex-shrink: 0; opacity: 0; color: #4a4a4a;
+    transition: opacity 0.15s ease, color 0.15s ease;
+  }
+  .item:hover .a { opacity: 0.45; }
+  .item .a:hover { color: #a8883f; opacity: 1; }
+  .item.applied .a { opacity: 1; color: #a8883f; }
+  .item .t { flex: 1; }
+  .item .c {
+    width: 2em;
+    text-align: center;
+    flex-shrink: 0;
+    opacity: 0;
+    color: #4a4a4a;
+    transition: opacity 0.15s ease, color 0.15s ease;
+  }
+  .item:hover .c { opacity: 0.55; }
+  .item .c:hover { color: #8a8a8a; opacity: 1; }
+  .item.done:not(.current) { color: #2b2b2b; }
+  .item.done .c { opacity: 1; color: #4d8a63; }
+  .item.resume:not(.current) .t::after {
+    content: "  · kaldığın yer";
+    font-size: 11px;
+    color: #3f6aa8;
+  }
+
+  /* ── Alt çubuk ── */
+  .bar {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px 28px;
+    padding: 10px 2vw 14px;
+    transition: opacity 0.3s ease;
+  }
+  .center { flex: 1; display: flex; justify-content: center; align-items: center; gap: 20px; min-width: 0; }
+  .tools { display: flex; align-items: center; gap: 18px; }
+
+  .bar button {
+    border: none;
+    outline: none;
+    box-shadow: none;
+    cursor: pointer;
+    font: inherit;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    padding: 6px 2px;
+    color: #4a4a4a;
+    transition: color 0.2s ease;
+  }
+  .bar button:hover { color: #7a7a7a; }
+  .bar button.active { color: #7fb0ff; }
+  .bar button:focus-visible { text-decoration: underline; text-underline-offset: 6px; }
+  #counter { font-size: 13px; color: #3a3a3a; min-width: 4.5em; text-align: center; }
+
+  #courseBtn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #courseBtn .grp { color: #333333; }
+
+  #pomo.active #pomoTime { color: #7fb0ff; }
+  #pomoRound { font-size: 12px; color: #3a3a3a; margin-left: 4px; }
+
+  /* ── Açılır paneller: kurs menüsü ve ilerleme ── */
+  .menu {
+    position: absolute;
+    left: 2vw;
+    right: 2vw;
+    bottom: 100%;
+    z-index: 5;
+    max-height: 70vh;
+    max-height: 70dvh;
+    overflow-y: auto;
+    padding: 16px 4px 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px 40px;
+    scrollbar-width: thin;
+    scrollbar-color: #1e1e1e #000000;
+  }
+  .menu[hidden] { display: none; }
+  .menu .span { grid-column: 1 / -1; }
+  .menu h3 {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    color: #2f2f2f;
+    padding: 0 2px 4px;
+  }
+  .menu button {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 14px;
+    text-align: left;
+  }
+  .menu .meta { font-size: 12px; color: #333333; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .menu button.active .meta { color: #3f6aa8; }
+
+  /* İlerleme paneli */
+  .sum { display: flex; flex-wrap: wrap; gap: 12px 56px; }
+  .sum .k { font-size: 12px; color: #333333; padding-bottom: 2px; }
+  .sum .v { font-size: 20px; font-weight: 300; color: #6a6a6a; font-variant-numeric: tabular-nums; }
+  .week { display: flex; align-items: flex-end; gap: 12px; height: 76px; }
+  .week .col { flex: 0 0 30px; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 5px; }
+  .week .b { width: 6px; min-height: 2px; background: #1c1c1c; border-radius: 2px; }
+  .week .b.on { background: #3f6aa8; }
+  .week .d { font-size: 11px; color: #2f2f2f; }
+  .week .col.today .d { color: #6a6a6a; }
+  .cr {
+    display: grid;
+    grid-template-columns: 1fr 64px 56px 40px;
+    align-items: center;
+    gap: 12px;
+    padding: 5px 2px;
+    font-size: 14px;
+    color: #4a4a4a;
+  }
+  .cr .ap { font-size: 12px; color: #a8883f; text-align: right; }
+  .gr { display: grid; grid-template-columns: 1fr 64px 96px; gap: 12px; align-items: center; padding: 5px 2px; font-size: 14px; color: #4a4a4a; }
+  .gr .ct { font-size: 12px; color: #333333; text-align: right; font-variant-numeric: tabular-nums; }
+  .rv { display: flex; gap: 12px; align-items: baseline; padding: 5px 2px; font-size: 14px; color: #4a4a4a; }
+  .rv .rvt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rv.go { cursor: pointer; }
+  .rv.go .rvt:hover { color: #8a8a8a; }
+  .rv .rvs { font-size: 12px; color: #333333; white-space: nowrap; }
+  .rv .rvk { color: #4d8a63; cursor: pointer; opacity: 0.6; }
+  .rv .rvk:hover { opacity: 1; }
+  #notes { left: 50%; right: auto; width: min(760px, 96vw); transform: translateX(-50%); grid-template-columns: 1fr; }
+  .ni { width: 100%; border: 0; border-bottom: 1px solid #1e1e1e; outline: none; color: #9a9a9a; font: inherit; font-size: 16px; padding: 8px 2px; }
+  .ni:focus { border-bottom-color: #3f6aa8; }
+  .ni::placeholder { color: #2f2f2f; }
+  .nr { display: grid; grid-template-columns: 58px 1fr 20px; gap: 12px; align-items: baseline; padding: 5px 2px; font-size: 14px; color: #6a6a6a; }
+  .nr .ck { color: #3f6aa8; cursor: pointer; font-variant-numeric: tabular-nums; }
+  .nr .x { color: #333333; cursor: pointer; text-align: center; }
+  .nr .x:hover { color: #8a8a8a; }
+  .act { font-size: 13px; color: #3a3a3a; cursor: pointer; padding-top: 6px; }
+  .act:hover { color: #7a7a7a; }
+  .rest input {
+    width: min(480px, 80%); border: 0; border-bottom: 1px solid #1e1e1e; outline: none; color: #8a8a8a;
+    font: inherit; font-size: 15px; padding: 6px 2px; text-align: center;
+  }
+  .rest input[hidden] { display: none; }
+  .rest input:focus { border-bottom-color: #3f6aa8; }
+  .rest input::placeholder { color: #2f2f2f; }
+  #ask {
+    position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 18px;
+  }
+  #ask[hidden] { display: none; }
+  #ask label { font-size: 14px; letter-spacing: 0.12em; color: #3a3a3a; }
+  #ask input {
+    width: min(560px, 86vw); border: 0; border-bottom: 1px solid #1e1e1e; outline: none; color: #9a9a9a;
+    font: inherit; font-size: 20px; padding: 8px 2px; text-align: center;
+  }
+  #ask input:focus { border-bottom-color: #3f6aa8; }
+  #ask input::placeholder { color: #2a2a2a; }
+  #ask .hint { font-size: 12px; color: #2f2f2f; }
+  #ask button { border: none; outline: none; cursor: pointer; font: inherit; font-size: 13px; color: #3a3a3a; padding: 4px 6px; }
+  #ask button:hover { color: #7a7a7a; }
+  .pop { max-height: 62vh; max-height: 62dvh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #1e1e1e #000000; }
+  .mini { height: 2px; background: #161616; border-radius: 2px; overflow: hidden; }
+  .mini i { display: block; height: 100%; background: #3f6aa8; }
+  .cr .ct { font-size: 12px; color: #333333; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Mola ekranı: video örtülür, sadece kalan süre görünür */
+  .rest {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+  }
+  .rest[hidden] { display: none; }
+  .rest .lbl { font-size: 14px; letter-spacing: 0.2em; color: #333333; }
+  .rest .time { font-size: clamp(40px, 9cqw, 110px); font-weight: 200; color: #4a4a4a; font-variant-numeric: tabular-nums; }
+  .rest button {
+    border: none; outline: none; cursor: pointer; font: inherit; font-size: 14px;
+    color: #3a3a3a; padding: 6px 4px; transition: color 0.2s ease;
+  }
+  .rest button:hover { color: #7a7a7a; }
+
+  /* Pomodoro ayarları */
+  .pop {
+    position: absolute;
+    right: 2vw;
+    bottom: 100%;
+    z-index: 4;
+    padding: 6px 4px 10px;
+    min-width: 230px;
+  }
+  .pop[hidden] { display: none; }
+  .pop .row { display: flex; align-items: center; gap: 10px; padding: 2px 0; }
+  .pop .row .name { flex: 1; font-size: 14px; color: #4a4a4a; }
+  .pop .row .val { min-width: 3.2em; text-align: center; font-size: 14px; color: #7fb0ff; font-variant-numeric: tabular-nums; }
+  .pop .foot { display: flex; justify-content: flex-end; gap: 16px; padding-top: 6px; }
+
+  #note { color: #6a5a3a; font-size: 13px; padding: 0 16px 6px; text-align: center; }
+  #note[hidden] { display: none; }
+
+  /* ── Sade mod: sadece video; çubuk fareyle alta gelince görünür ── */
+  body.zen .stage { padding: 1vh 1vw 0; }
+  body.zen .listwrap { display: none; }
+  body.zen .bar.peek { opacity: 1; }
+  body.zen .bar { opacity: 0; }
+  body.zen .bar:hover, body.zen .bar:focus-within { opacity: 1; }
+
+  @media (max-width: 900px) {
+    .listwrap { position: absolute; top: 0; right: 2vw; bottom: 0; width: min(340px, 85vw); z-index: 2; }
+    .bar { justify-content: center; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+
+  /* ── Eşitleme göstergesi, not eylemi, sade modda dokunmatik erişim ── */
+  #note .nact { border: none; outline: none; cursor: pointer; font: inherit; color: #7fb0ff; padding: 8px 10px; }
+  #syncDot { display: none; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; vertical-align: middle; }
+  #hot { display: none; position: fixed; left: 0; right: 0; bottom: 0; height: calc(56px + env(safe-area-inset-bottom, 0px)); z-index: 6; }
+  .pop .sy { font-size: 12px; color: #4a4a4a; padding: 2px 0 8px; line-height: 1.6; max-width: 320px; }
+  .pop .sy b { font-weight: 400; color: #7a7a7a; user-select: text; -webkit-user-select: text; word-break: break-all; }
+  .pop .sy a { color: #7fb0ff; }
+  .pop .cin { width: 100%; max-width: 320px; margin: 4px 0; padding: 8px 2px; border: none; border-bottom: 1px solid #222; color: #aaa; font: inherit; font-size: 16px; outline: none; }
+  .pop .cmsg { font-size: 12px; color: #a8883f; min-height: 1em; padding: 2px 0 6px; max-width: 320px; line-height: 1.5; }
+  .pop .qr { padding: 4px 0 8px; }
+  .pop .qr svg { display: block; border-radius: 6px; }
+
+  /* ── Dokunmatik ekranlar (iPhone): fare yok, parmak var ── */
+  @media (hover: none) {
+    .item { align-items: center; padding: 10px 0 10px 8px; font-size: 15px; }
+    .item .nt { font-size: 12px; }
+    .item .c, .item .a { width: 44px; padding: 8px 0; opacity: 0.45; }
+    .item.applied .a, .item.done .c { opacity: 1; }
+    .bar button { min-height: 44px; padding: 10px 8px; }
+    .menu button { padding: 12px 4px; }
+    .lf button { min-height: 44px; padding: 8px 8px; font-size: 13px; }
+    .lf input, .rest input, .ni, #ask input { font-size: 16px; }   /* 16 px altında iOS yazarken sayfayı yakınlaştırır */
+    .pop .row { padding: 4px 0; }
+    .pop .row button { min-width: 44px; }
+    .nr { padding: 10px 2px; }
+    .nr .x { padding: 0 10px; }
+    #ask .hint { display: none; }
+    #ask button, .rest button { min-height: 44px; padding: 10px 14px; }
+    /* Sade mod: çubuk gizli; alt kenara dokununca 6 sn görünür */
+    body.zen #hot { display: block; }
+    body.zen #hot.off { display: none; }
+    body.zen .bar:not(.peek):not(.touch) { pointer-events: none; }
+    body.zen .bar:hover:not(.peek):not(.touch), body.zen .bar:focus-within:not(.peek):not(.touch) { opacity: 0; }
+    body.zen .bar.touch { opacity: 1; }
+  }
+
+  /* Dikey telefon: video üstte, liste altta, denetimler en altta */
+  @media (max-width: 700px) and (orientation: portrait) {
+    .stage { flex-direction: column; gap: 6px; padding: 0; }
+    .video { flex: none; width: 100%; aspect-ratio: 16 / 9; }
+    .player { border-radius: 0; }
+    .listwrap { position: static; width: 100%; flex: 1; min-height: 0; z-index: auto; }
+    .lf { padding: 0 8px 4px; }
+    body.zen .stage { justify-content: center; }
+    .bar { gap: 0 8px; padding: 4px 2vw calc(8px + env(safe-area-inset-bottom, 0px)); }
+    .bar .t1, .bar .t2, .bar .center { width: 100%; flex: none; }
+    .bar .t1, .bar .t2 { justify-content: space-between; gap: 0; }
+    .bar .center { justify-content: space-between; gap: 8px; }
+    .bar .t2 button { padding-left: 4px; padding-right: 4px; font-size: 13px; }
+    .menu, .pop { left: 2vw; right: 2vw; }
+    .menu { grid-template-columns: minmax(0, 1fr); }
+    .sum { gap: 12px 28px; }
+    #notes { left: 2vw; width: auto; transform: none; }
+  }
+
+  /* Yatay telefon: çubuğu inceltip videoya yer aç */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .bar { padding-top: 2px; padding-bottom: max(6px, env(safe-area-inset-bottom, 0px)); gap: 0 14px; }
+    .bar button { min-height: 36px; padding-top: 6px; padding-bottom: 6px; }
+    .stage { padding-top: 1vh; }
+    .listwrap { position: static; width: min(300px, 40vw); z-index: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="video">
+    <div class="player">
+      <div class="rest" id="rest" hidden>
+        <span class="lbl" id="restLbl">MOLA</span>
+        <span class="time" id="restTime"></span>
+        <input id="reflect" type="text" maxlength="200" autocomplete="off" enterkeyhint="done" spellcheck="false" hidden>
+        <button type="button" id="restSkip">atla</button>
+      </div>
+    </div>
+  </div>
+  <div class="listwrap" id="listwrap" hidden>
+    <div class="lf">
+      <input id="q" type="text" placeholder="Ara…  ( / )" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="search" spellcheck="false">
+      <button type="button" id="undoneBtn" title="Sadece bitmemiş videoları göster">Bitmemiş</button>
+    </div>
+    <div class="list loading" id="list"></div>
+  </div>
+</div>
+
+<p id="note" hidden></p>
+
+<div id="ask" hidden>
+  <label id="askLbl"></label>
+  <input id="askIn" type="text" maxlength="160" autocomplete="off" enterkeyhint="go" spellcheck="false">
+  <span class="hint">Enter: başla · Esc: sormadan başla</span>
+  <button type="button" id="askSkip">atla</button>
+</div>
+
+<div id="hot"></div>
+
+<div class="bar">
+  <div class="tools t1">
+    <button type="button" id="prev" title="Önceki video (P)">‹ Önceki</button>
+    <span id="counter"></span>
+    <button type="button" id="next" title="Sonraki video (N)">Sonraki ›</button>
+  </div>
+  <div class="center">
+    <button type="button" id="courseBtn" title="Kurslar (K)" aria-haspopup="true" aria-expanded="false"></button>
+    <button type="button" id="resumeBtn" title="Bitmemiş ilk videoya git (R)">▸ Devam</button>
+  </div>
+  <div class="tools t2">
+    <button type="button" id="speed" title="Hız (S)">1×</button>
+    <button type="button" id="toggleList" title="Liste (L)">Liste</button>
+    <button type="button" id="notesBtn" title="Zaman damgalı not (M)">Not</button>
+    <button type="button" id="statsBtn" title="İlerleme (I)">İlerleme</button>
+    <button type="button" id="zenBtn" title="Sade mod (F)">Sade</button>
+    <button type="button" id="pomo" title="Başlat / durdur (T)"><span id="pomoTime">50:00</span><span id="pomoRound"></span></button>
+    <button type="button" id="pomoSet">Ayar<span id="syncDot"></span></button>
+  </div>
+  <div class="menu" id="menu" hidden></div>
+  <div class="menu" id="stats" hidden></div>
+  <div class="menu" id="notes" hidden></div>
+  <div class="pop" id="pop" hidden></div>
+</div>
+
+<script>
+  // ─────────────────────────────────────────────
+  // KURSLARINI BURAYA EKLE
+  // group: kursun alanı (menüde ve ilerleme panelinde bu başlık altında görünür)
+  // playlistId: YouTube linkindeki "list=" sonrasındaki kısım.
+  // (Tam linki yapıştırsan da olur, ID otomatik ayıklanır.)
+  // total (isteğe bağlı): listedeki video sayısı. Kurs bir kez açılınca gerçek sayı kendiliğinden öğrenilir.
+  // Sıra, menüdeki sıradır. Aynı alana ait kursları yan yana tut.
+  // ─────────────────────────────────────────────
+  const courses = [
+    // Tasarım
+    { group: "Tasarım",      name: "Fusion 360",            playlistId: "PLWctyKyPphPjDJhxcrZnGMKhiL82FFITo" },
+    { group: "Tasarım",      name: "Fusion 360 Pratik",     playlistId: "PLqBk9LsxJMVw-wFsy0TlG8dv2V8KCt4rR" },
+    { group: "Tasarım",      name: "AutoCAD",               playlistId: "PLZvK8tF4AB9BfvCuDlNpcCw6QTFEv00DU" },
+    { group: "Tasarım",      name: "SolidWorks 2026",       playlistId: "PL8Qe6l9Q7kdovKoNS2aGPunoojqLkYHxA", total: 34 },
+
+    // Programlama
+    { group: "Programlama",  name: "C++ (Visual Studio)",   playlistId: "PLzupOkYTW5dSdcs6aquWkkjhv-2J5Fmwq", total: 46 },
+    { group: "Programlama",  name: "Python",                playlistId: "PLdg_znGJeG88d5HwUOT40JaSaERU6n0aq", total: 58 },
+
+    // Arduino
+    { group: "Arduino",      name: "Arduino",               playlistId: "PLkhSl_0v_U0JEJOo26ejZG8VrK_6hhsja", total: 86 },
+    { group: "Arduino",      name: "Arduino (SendeKodYaz)", playlistId: "PLSuhOGv534vS1MNrvdFhBovGIbofssf9r", total: 79 },
+    { group: "Arduino",      name: "Arduino (Robo90)",      playlistId: "PLjusLCxPk1B9vcstOjzLpDqPDj0VLjBMD", total: 34 },
+    { group: "Arduino",      name: "Arduino Modüller",      playlistId: "PL1J0y2v7mkQzlEbjdOcKnC6Ziw7XGE8OU" },
+
+    // Gömülü sistemler
+    { group: "Gömülü",       name: "ESP8266",               playlistId: "PLdgdjpyKdKNNfNd61DDBWHmPJfZPLE81B" },
+    { group: "Gömülü",       name: "ESP32",                 playlistId: "PLLvF0xxuY_qD4B-9fVF0hJNwKbVpT60zC" },
+    { group: "Gömülü",       name: "Modern Embedded (EN)",  playlistId: "PLPW8O6W-1chwyTzI3BHwBLbGQoPFxPAPM", total: 58 },
+
+    // Elektronik
+    { group: "Elektronik",   name: "Elektronik",            playlistId: "PLkhSl_0v_U0IO4uoAxjJtWSQrp3jIgQ4h" },
+    { group: "Elektronik",   name: "Electronics for Beginners (EN)", playlistId: "PL2z3V9RkHQE3E0sJBjmK6z_ixxuve5Sao", total: 29 }
+  ];
+
+  const STORE = "odak.v3";
+  const OLD_STORE = "odak.v2";
+  const TITLES = "odak.basliklar";
+  const LISTS = "odak.listeler2";   // eski önbellek yanlış liste içerebildiği için yeni anahtar
+  const RATES = [1, 1.25, 1.5, 1.75, 2];
+  const DONE_AT = 0.9;        // videonun %90'ı izlenince "bitti" sayılır
+  const STREAK_MIN = 600;     // günde en az 10 dk izlenen gün "seri"ye sayılır
+  const PUSH_DELAY = 10000;   // sunucuyla eşitleme aralığı (ms); oynarken en geç bu kadar sürede bir
+
+  // v2'de son kurs sıra numarasıyla tutuluyordu; eski sırayı ID'ye çevirmek için
+  const LEGACY_ORDER = [
+    "PLWctyKyPphPjDJhxcrZnGMKhiL82FFITo", "PLqBk9LsxJMVw-wFsy0TlG8dv2V8KCt4rR",
+    "PLZvK8tF4AB9BfvCuDlNpcCw6QTFEv00DU", "PLcNWqzWzYG2v5_R_uPyLRzGXSoYgjfd8C",
+    "PLkhSl_0v_U0JEJOo26ejZG8VrK_6hhsja", "PLkhSl_0v_U0IO4uoAxjJtWSQrp3jIgQ4h",
+    "PL1J0y2v7mkQzlEbjdOcKnC6Ziw7XGE8OU", "PLdgdjpyKdKNNfNd61DDBWHmPJfZPLE81B",
+    "PLLvF0xxuY_qD4B-9fVF0hJNwKbVpT60zC"
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const listEl = $("list"), noteEl = $("note");
+  const counterEl = $("counter"), speedBtn = $("speed"), listBtn = $("toggleList");
+  const courseBtn = $("courseBtn"), menuEl = $("menu"), zenBtn = $("zenBtn");
+  const statsEl = $("stats"), statsBtn = $("statsBtn");
+  const notesEl = $("notes"), notesBtn = $("notesBtn"), barEl = document.querySelector(".bar");
+  const resumeBtn = $("resumeBtn"), wrapEl = $("listwrap"), qIn = $("q"), undoneBtn = $("undoneBtn");
+  const askEl = $("ask"), askIn = $("askIn"), askLbl = $("askLbl"), askSkip = $("askSkip"), reflectIn = $("reflect");
+  const hotEl = $("hot");
+
+  function read(key, fallback) {
+    try { const v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; }
+    catch (_) { return fallback; }
+  }
+  function write(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch (_) {}
+  }
+  function cleanId(value) {
+    const m = String(value).match(/[?&]list=([\w-]+)/);
+    return m ? m[1] : String(value).trim();
+  }
+  function embedSrc(id) {
+    const origin = location.protocol.indexOf("http") === 0
+      ? "&origin=" + encodeURIComponent(location.origin) : "";
+    return "https://www.youtube-nocookie.com/embed/videoseries?list=" +
+      encodeURIComponent(cleanId(id)) +
+      "&enablejsapi=1&rel=0&showinfo=0&controls=1&playsinline=1" + origin;
+  }
+  function note(msg, act) {
+    noteEl.textContent = msg || "";
+    if (msg && act) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "nact";
+      b.textContent = act.label;
+      b.addEventListener("click", act.fn);
+      noteEl.append(" ", b);
+    }
+    noteEl.hidden = !msg;
+  }
+  function dayKey(d) {
+    d = d || new Date();
+    const z = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate());
+  }
+
+  // ── Kayıt ve eşitleme ──
+  // İlerleme üç yerde durur: bu tarayıcı (localStorage), sunucudaki odak-veri.json ve diğer cihaz.
+  // Her cihaz kendi kopyasını tutar. Eşitlemede sunucudaki kopyayla BİRLEŞTİRİR, üzerine yazmaz;
+  // bu yüzden iki cihaz aynı anda açık olsa da, biri çevrimdışı kalsa da kayıt kaybolmaz.
+  // Kurallar mergeStates içinde: süre/pomodoro sayaçları cihaz başına tutulup toplanır, bitti/uyguladım/not
+  // işaretleri birleşir (geri almalar iz bırakarak yayılır), "kaldığın yer" kurs başına en yeniye göre seçilir.
+
+  // <<MERGE-BEGIN>>
+  const LEGACY = "L0";                 // eski sürümden kalan sayaçların kovası
+  const CTRS = ["time", "watch", "pomos"];
+  const TOMB_TTL = 180 * 86400000;     // geri alma izleri 180 gün saklanır
+  const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+  const num = (v) => (typeof v === "number" && isFinite(v) ? v : 0);
+  const clone = (v) => JSON.parse(JSON.stringify(v));
+
+  // Her kaydı aynı şekle getirir. Eski sürümün dosyası (ctr yok) da burada yeni şekle çevrilir.
+  function normalize(s) {
+    const c = clone(isObj(s) ? s : {});
+    ["progress", "done", "applied", "notes", "reviews", "rates", "del", "time", "watch", "pomos"].forEach((k) => {
+      if (!isObj(c[k])) c[k] = {};
+    });
+    if (!Array.isArray(c.log)) c.log = [];
+    const saved = num(c.savedAt);
+    c.lastAt = num(c.lastAt) || saved;
+    c.prefsAt = num(c.prefsAt) || saved;
+    Object.keys(c.progress).forEach((k) => {
+      const p = c.progress[k];
+      if (!isObj(p)) { delete c.progress[k]; return; }
+      p.at = num(p.at) || saved;
+    });
+    if (!isObj(c.ctr)) {
+      c.ctr = {};
+      CTRS.forEach((n) => { c.ctr[n] = {}; c.ctr[n][LEGACY] = clone(c[n]); });
+    }
+    CTRS.forEach((n) => { if (!isObj(c.ctr[n])) c.ctr[n] = {}; });
+    return c;
+  }
+
+  // time / watch / pomos: cihaz kovalarının toplamı
+  function derive(c) {
+    CTRS.forEach((n) => {
+      const out = {};
+      Object.keys(c.ctr[n]).forEach((dev) => {
+        const bucket = c.ctr[n][dev];
+        Object.keys(bucket).forEach((k) => { out[k] = (out[k] || 0) + num(bucket[k]); });
+      });
+      c[n] = out;
+    });
+  }
+
+  function newerProgress(x, y) {
+    if (!x) return y;
+    if (!y) return x;
+    if (num(y.at) !== num(x.at)) return num(y.at) > num(x.at) ? y : x;
+    if (num(y.index) !== num(x.index)) return num(y.index) > num(x.index) ? y : x;
+    return num(y.time) > num(x.time) ? y : x;
+  }
+
+  // İki kaydı birleştirir; hiçbirinin üzerine yazmaz. Sıra önemsizdir, tekrar çalıştırmak sonucu değiştirmez.
+  function mergeStates(A, B) {
+    const a = normalize(A), b = normalize(B), m = {};
+    const now = Date.now();
+
+    // Sayaçlar: her cihaz yalnızca kendi kovasını artırır; kova başına en büyük değer alınır, sonra toplanır.
+    m.ctr = {};
+    CTRS.forEach((n) => {
+      m.ctr[n] = {};
+      [a.ctr[n], b.ctr[n]].forEach((src) => {
+        Object.keys(src).forEach((dev) => {
+          if (!isObj(src[dev])) return;
+          const dst = m.ctr[n][dev] || (m.ctr[n][dev] = {});
+          Object.keys(src[dev]).forEach((k) => { dst[k] = Math.max(num(dst[k]), num(src[dev][k])); });
+        });
+      });
+    });
+
+    // Geri alma izleri ("d|kurs|video", "a|kurs|video", "n|kurs|video|zaman")
+    m.del = {};
+    [a.del, b.del].forEach((src) => Object.keys(src).forEach((k) => {
+      const t = num(src[k]);
+      if (t && now - t < TOMB_TTL) m.del[k] = Math.max(num(m.del[k]), t);
+    }));
+
+    // Bitti ve uyguladım: iki tarafta da varsa en yeni damga; geri alma izi daha yeniyse silinir
+    const stamps = (field, tag) => {
+      const out = {};
+      [a[field], b[field]].forEach((src) => Object.keys(src).forEach((pid) => {
+        const inner = src[pid];
+        if (!isObj(inner)) return;
+        Object.keys(inner).forEach((id) => {
+          const v = inner[id] === true ? 1 : num(inner[id]);
+          if (!v) return;
+          const t = m.del[tag + "|" + pid + "|" + id];
+          if (t && t > v) return;
+          const o = out[pid] || (out[pid] = {});
+          if (v > (o[id] || 0)) o[id] = v;
+        });
+      }));
+      return out;
+    };
+    m.done = stamps("done", "d");
+    m.applied = stamps("applied", "a");
+
+    // Tekrar sayaçları: büyük olan; bitmemiş videoların kaydı atılır
+    m.reviews = {};
+    [a.reviews, b.reviews].forEach((src) => Object.keys(src).forEach((pid) => {
+      const inner = src[pid];
+      if (!isObj(inner)) return;
+      Object.keys(inner).forEach((id) => {
+        const v = num(inner[id]);
+        if (v <= 0 || !(m.done[pid] && m.done[pid][id])) return;
+        const o = m.reviews[pid] || (m.reviews[pid] = {});
+        o[id] = Math.max(num(o[id]), v);
+      });
+    }));
+
+    // Notlar: iki taraftakilerin birleşimi; silinenler geri gelmez
+    m.notes = {};
+    [a.notes, b.notes].forEach((src) => Object.keys(src).forEach((pid) => {
+      const byVideo = src[pid];
+      if (!isObj(byVideo)) return;
+      Object.keys(byVideo).forEach((id) => {
+        (Array.isArray(byVideo[id]) ? byVideo[id] : []).forEach((n) => {
+          if (!n || typeof n.text !== "string" || !n.text) return;
+          const at = num(n.at);
+          if (m.del["n|" + pid + "|" + id + "|" + at]) return;
+          const P = m.notes[pid] || (m.notes[pid] = {});
+          const L = P[id] || (P[id] = []);
+          if (!L.some((x) => x.at === at && x.text === n.text)) L.push({ t: num(n.t), text: n.text, at: at });
+        });
+      });
+    }));
+    Object.keys(m.notes).forEach((pid) => Object.keys(m.notes[pid]).forEach((id) => {
+      m.notes[pid][id].sort((x, y) => (x.t - y.t) || (x.at - y.at));
+    }));
+
+    // Kaldığın yer: kurs başına en yeni kayıt
+    m.progress = {};
+    Object.keys(a.progress).concat(Object.keys(b.progress)).forEach((pid) => {
+      m.progress[pid] = newerProgress(a.progress[pid], b.progress[pid]);
+    });
+
+    // Son açılan kurs
+    const lastB = num(b.lastAt) > num(a.lastAt) ||
+      (num(b.lastAt) === num(a.lastAt) && String(b.lastId || "") > String(a.lastId || ""));
+    m.lastId = (lastB ? b.lastId : a.lastId) || a.lastId || b.lastId || "";
+    m.lastAt = Math.max(num(a.lastAt), num(b.lastAt));
+
+    // Ayarlar (hız, pomodoro): en son değiştirilen taraf
+    const prefB = num(b.prefsAt) > num(a.prefsAt) ||
+      (num(b.prefsAt) === num(a.prefsAt) && JSON.stringify(b.pomo || {}) > JSON.stringify(a.pomo || {}));
+    const ps = prefB ? b : a, other = prefB ? a : b;
+    if (ps.pomo || other.pomo) m.pomo = ps.pomo || other.pomo;
+    if (ps.rate || other.rate) m.rate = ps.rate || other.rate;
+    m.rates = (Object.keys(ps.rates).length || num(ps.prefsAt) > num(other.prefsAt)) ? ps.rates : other.rates;
+    m.prefsAt = Math.max(num(a.prefsAt), num(b.prefsAt));
+
+    // Oturum günlüğü: birleşim; boş kalan alanlar dolu olanla tamamlanır
+    const L = {};
+    [a.log, b.log].forEach((src) => src.forEach((e) => {
+      if (!e || !num(e.ts)) return;
+      const k = e.ts + "|" + e.pid, o = L[k];
+      if (!o) L[k] = { ts: e.ts, pid: e.pid, intent: e.intent || "", learned: e.learned || "", min: num(e.min) };
+      else {
+        if (!o.intent && e.intent) o.intent = e.intent;
+        if (!o.learned && e.learned) o.learned = e.learned;
+      }
+    }));
+    m.log = Object.keys(L).map((k) => L[k]).sort((x, y) => x.ts - y.ts).slice(-200);
+
+    if (typeof a.list === "boolean") m.list = a.list;      // liste görünürlüğü cihaza özeldir
+    m.savedAt = Math.max(num(a.savedAt), num(b.savedAt));
+    derive(m);
+    return m;
+  }
+
+  function canon(v) {
+    if (Array.isArray(v)) return v.map(canon);
+    if (isObj(v)) { const o = {}; Object.keys(v).sort().forEach((k) => { o[k] = canon(v[k]); }); return o; }
+    return v;
+  }
+  // Sunucudaki kayıt birleşmiş kayıtla aynı mı? (aynıysa tekrar yazmaya gerek yok)
+  function sameData(x, y) {
+    const strip = (s) => { const c = clone(isObj(s) ? s : {}); delete c.savedAt; delete c.list; return JSON.stringify(canon(c)); };
+    return strip(x) === strip(y);
+  }
+  // <<MERGE-END>>
+
+  // <<QR-BEGIN>>
+  // QR kodu üretici (bayt kipi, hata düzeltme seviyesi L, sürüm 1-10; ~270 bayta kadar). Dış kitaplık gerekmez.
+  const QR = (function () {
+    const ECC = [-1, 7, 10, 15, 20, 26, 18, 20, 24, 30, 18];   // blok başına düzeltme kodu sözcüğü (L)
+    const NBLK = [-1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 4];           // blok sayısı (L)
+    const MAXV = 10;
+    const rawModules = (v) => {
+      let r = (16 * v + 128) * v + 64;
+      if (v >= 2) { const a = Math.floor(v / 7) + 2; r -= (25 * a - 10) * a - 55; if (v >= 7) r -= 36; }
+      return r;
+    };
+    const dataWords = (v) => Math.floor(rawModules(v) / 8) - ECC[v] * NBLK[v];
+    const rsMul = (x, y) => { let z = 0; for (let i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11D); z ^= ((y >>> i) & 1) * x; } return z; };
+    const rsDiv = (deg) => {
+      const r = []; for (let i = 0; i < deg - 1; i++) r.push(0); r.push(1);
+      let root = 1;
+      for (let i = 0; i < deg; i++) { for (let j = 0; j < r.length; j++) { r[j] = rsMul(r[j], root); if (j + 1 < r.length) r[j] ^= r[j + 1]; } root = rsMul(root, 2); }
+      return r;
+    };
+    const rsRem = (data, div) => {
+      const r = div.map(() => 0);
+      data.forEach((b) => { const f = b ^ r.shift(); r.push(0); div.forEach((c, i) => { r[i] ^= rsMul(c, f); }); });
+      return r;
+    };
+    const alignPos = (v) => {
+      if (v === 1) return [];
+      const n = Math.floor(v / 7) + 2, size = v * 4 + 17;
+      const step = v === 32 ? 26 : Math.ceil((v * 4 + 4) / (n * 2 - 2)) * 2;
+      const res = [6];
+      for (let p = size - 7; res.length < n; p -= step) res.splice(1, 0, p);
+      return res;
+    };
+    const MASKS = [
+      (x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0, (x, y) => x % 3 === 0, (x, y) => (x + y) % 3 === 0,
+      (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0, (x, y) => (x * y) % 2 + (x * y) % 3 === 0,
+      (x, y) => ((x * y) % 2 + (x * y) % 3) % 2 === 0, (x, y) => ((x + y) % 2 + (x * y) % 3) % 2 === 0
+    ];
+
+    function build(text) {
+      const bytes = Array.from(new TextEncoder().encode(text));
+      let ver = 0;
+      for (let v = 1; v <= MAXV; v++) if (4 + (v <= 9 ? 8 : 16) + bytes.length * 8 <= dataWords(v) * 8) { ver = v; break; }
+      if (!ver) return null;
+      const bits = [];
+      const put = (val, n) => { for (let i = n - 1; i >= 0; i--) bits.push((val >>> i) & 1); };
+      put(4, 4); put(bytes.length, ver <= 9 ? 8 : 16); bytes.forEach((b) => put(b, 8));
+      const cap = dataWords(ver) * 8;
+      put(0, Math.min(4, cap - bits.length)); put(0, (8 - bits.length % 8) % 8);
+      for (let pad = 0xEC; bits.length < cap; pad ^= 0xEC ^ 0x11) put(pad, 8);
+      const data = [];
+      for (let i = 0; i < bits.length; i += 8) { let b = 0; for (let j = 0; j < 8; j++) b = (b << 1) | bits[i + j]; data.push(b); }
+
+      const nb = NBLK[ver], ecl = ECC[ver], raw = Math.floor(rawModules(ver) / 8);
+      const numShort = nb - raw % nb, shortLen = Math.floor(raw / nb), div = rsDiv(ecl), blocks = [];
+      for (let i = 0, k = 0; i < nb; i++) {
+        const len = shortLen - ecl + (i < numShort ? 0 : 1);
+        const dat = data.slice(k, k + len); k += len;
+        const ec = rsRem(dat, div);
+        if (i < numShort) dat.push(0);
+        blocks.push(dat.concat(ec));
+      }
+      const words = [];
+      blocks[0].forEach((_, i) => blocks.forEach((blk, j) => { if (i !== shortLen - ecl || j >= numShort) words.push(blk[i]); }));
+
+      const size = ver * 4 + 17;
+      const mod = Array.from({ length: size }, () => new Array(size).fill(false));
+      const fn = Array.from({ length: size }, () => new Array(size).fill(false));
+      const setF = (x, y, d) => { mod[y][x] = d; fn[y][x] = true; };
+      for (let i = 0; i < size; i++) { setF(6, i, i % 2 === 0); setF(i, 6, i % 2 === 0); }
+      const finder = (cx, cy) => {
+        for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+          const d = Math.max(Math.abs(dx), Math.abs(dy)), x = cx + dx, y = cy + dy;
+          if (x >= 0 && x < size && y >= 0 && y < size) setF(x, y, d !== 2 && d !== 4);
+        }
+      };
+      finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+      const ap = alignPos(ver), an = ap.length;
+      for (let i = 0; i < an; i++) for (let j = 0; j < an; j++) {
+        if ((i === 0 && j === 0) || (i === 0 && j === an - 1) || (i === an - 1 && j === 0)) continue;
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) setF(ap[i] + dx, ap[j] + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+      }
+      const drawFormat = (mask) => {
+        const d = (1 << 3) | mask;                       // seviye L = 01
+        let rem = d; for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+        const f = ((d << 10) | rem) ^ 0x5412, bit = (i) => ((f >>> i) & 1) !== 0;
+        for (let i = 0; i <= 5; i++) setF(8, i, bit(i));
+        setF(8, 7, bit(6)); setF(8, 8, bit(7)); setF(7, 8, bit(8));
+        for (let i = 9; i < 15; i++) setF(14 - i, 8, bit(i));
+        for (let i = 0; i < 8; i++) setF(size - 1 - i, 8, bit(i));
+        for (let i = 8; i < 15; i++) setF(8, size - 15 + i, bit(i));
+        setF(8, size - 8, true);
+      };
+      drawFormat(0);
+      if (ver >= 7) {
+        let rem = ver; for (let i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1F25);
+        const v = (ver << 12) | rem;
+        for (let i = 0; i < 18; i++) { const c = ((v >>> i) & 1) !== 0, a = size - 11 + i % 3, b = Math.floor(i / 3); setF(a, b, c); setF(b, a, c); }
+      }
+      let k = 0;
+      for (let right = size - 1; right >= 1; right -= 2) {
+        if (right === 6) right = 5;
+        for (let vert = 0; vert < size; vert++) for (let j = 0; j < 2; j++) {
+          const x = right - j, up = ((right + 1) & 2) === 0, y = up ? size - 1 - vert : vert;
+          if (!fn[y][x] && k < words.length * 8) { mod[y][x] = ((words[k >>> 3] >>> (7 - (k & 7))) & 1) !== 0; k++; }
+        }
+      }
+      const applyMask = (m) => { for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!fn[y][x] && MASKS[m](x, y)) mod[y][x] = !mod[y][x]; };
+      const penalty = () => {
+        let p = 0, dark = 0;
+        const line = (get) => {
+          let run = 1;
+          for (let i = 1; i < size; i++) { if (get(i) === get(i - 1)) run++; else { if (run >= 5) p += 3 + run - 5; run = 1; } }
+          if (run >= 5) p += 3 + run - 5;
+          let s = ""; for (let i = 0; i < size; i++) s += get(i) ? "1" : "0";
+          ["10111010000", "00001011101"].forEach((pat) => { let at = s.indexOf(pat); while (at >= 0) { p += 40; at = s.indexOf(pat, at + 1); } });
+        };
+        for (let y = 0; y < size; y++) line((i) => mod[y][i]);
+        for (let x = 0; x < size; x++) line((i) => mod[i][x]);
+        for (let y = 0; y < size - 1; y++) for (let x = 0; x < size - 1; x++) if (mod[y][x] === mod[y][x + 1] && mod[y][x] === mod[y + 1][x] && mod[y][x] === mod[y + 1][x + 1]) p += 3;
+        mod.forEach((r) => r.forEach((c) => { if (c) dark++; }));
+        p += (Math.ceil(Math.abs(dark * 20 - size * size * 10) / (size * size)) - 1) * 10;
+        return p;
+      };
+      let best = 0, bestP = Infinity;
+      for (let m = 0; m < 8; m++) { applyMask(m); drawFormat(m); const p = penalty(); if (p < bestP) { bestP = p; best = m; } applyMask(m); }
+      applyMask(best); drawFormat(best);
+      return { size: size, version: ver, mod: mod };
+    }
+
+    // Kare SVG döndürür (beyaz zemin, siyah modüller, 4 modül boşluk); sığmazsa null
+    function svg(text, px) {
+      const q = build(text);
+      if (!q) return null;
+      const n = q.size + 8, NS = "http://www.w3.org/2000/svg";
+      const el = document.createElementNS(NS, "svg");
+      el.setAttribute("viewBox", "0 0 " + n + " " + n);
+      el.setAttribute("width", px); el.setAttribute("height", px);
+      el.setAttribute("shape-rendering", "crispEdges");
+      const bg = document.createElementNS(NS, "rect");
+      bg.setAttribute("width", n); bg.setAttribute("height", n); bg.setAttribute("fill", "#fff");
+      el.appendChild(bg);
+      let d = "";
+      for (let y = 0; y < q.size; y++) for (let x = 0; x < q.size; x++) if (q.mod[y][x]) d += "M" + (x + 4) + " " + (y + 4) + "h1v1h-1z";
+      const path = document.createElementNS(NS, "path");
+      path.setAttribute("d", d); path.setAttribute("fill", "#000");
+      el.appendChild(path);
+      return el;
+    }
+    return { build: build, svg: svg };
+  })();
+  // <<QR-END>>
+
+  const DEV = (() => {
+    let d = read("odak.dev", null);
+    if (typeof d !== "string" || d.length < 4 || d === LEGACY) {
+      d = Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+      write("odak.dev", d);
+    }
+    return d;                    // bu tarayıcının sayaç kovası
+  })();
+
+  function loadRemote() {
+    if (location.protocol.indexOf("http") !== 0) return { status: 0, data: null };
+    try {
+      const x = new XMLHttpRequest();
+      x.open("GET", "/veri", false);
+      x.send();
+      if (x.status !== 200) return { status: x.status, data: null };
+      const j = JSON.parse(x.responseText);
+      return { status: 200, data: isObj(j) ? j : {} };
+    } catch (_) { return { status: -1, data: null }; }
+  }
+
+  const rr = loadRemote();
+  let local = read(STORE, null);
+  if (!local) {
+    const old = read(OLD_STORE, null);
+    local = old ? {
+      progress: old.progress, rate: old.rate, list: old.list, pomo: old.pomo,
+      lastId: LEGACY_ORDER[old.last] || ""
+    } : {};
+  }
+  const state = Object.assign({ lastId: "", lastAt: 0, prefsAt: 0, savedAt: 0 }, mergeStates(local, rr.data || {}));
+  if (typeof state.list !== "boolean") state.list = true;
+  if (!RATES.includes(state.rate)) state.rate = 1;
+  state.pomo = Object.assign({ work: 50, short: 10, long: 25, rounds: 3, alarm: 12, vol: 70, intent: 1, reflect: 1, goalH: 0, goalV: 0 }, state.pomo);
+  const titles = read(TITLES, {});
+  const lists = read(LISTS, {});     // kurs başına son bilinen video ID'leri (liste anında görünsün diye)
+
+  // Sunucu yoksa (dosya olarak açıldıysa) ya da /veri adresi yoksa eşitleme kapalıdır; kayıt yine tarayıcıdadır.
+  const sync = {
+    on: location.protocol.indexOf("http") === 0 && rr.status !== 404 && rr.status !== 405,
+    busy: false, again: false, timer: null, due: 0,
+    ok: rr.data ? true : null, last: rr.data ? Date.now() : 0,
+    pulled: !!rr.data,              // sunucudan en az bir kez okunmadan sunucuya yazılmaz
+    cok: null, clast: 0, cnext: 0, cfirst: false, cmsg: ""   // bulut (Gist) durumu
+  };
+
+  function saveState() {
+    state.savedAt = Date.now();
+    write(STORE, state);
+    scheduleSync(PUSH_DELAY);
+  }
+  // Gecikmeli (oynarken en geç PUSH_DELAY'de bir) ama daha erken istenirse öne alınan eşitleme
+  function scheduleSync(delay) {
+    if (!sync.on && !cloudOn()) return;
+    const due = Date.now() + delay;
+    if (sync.timer && sync.due <= due) return;
+    clearTimeout(sync.timer);
+    sync.due = due;
+    sync.timer = setTimeout(() => { sync.timer = null; syncNow(); }, delay);
+  }
+  function fetchTimed(url, opts, ms) {
+    const ctl = typeof AbortController === "function" ? new AbortController() : null;
+    const to = setTimeout(() => { if (ctl) ctl.abort(); }, ms || 8000);
+    return fetch(url, Object.assign({ cache: "no-store" }, ctl ? { signal: ctl.signal } : {}, opts))
+      .finally(() => clearTimeout(to));
+  }
+
+  // Sayaç artırma: yalnızca bu cihazın kovası artar, ekrandaki toplam da birlikte güncellenir
+  function bump(name, key, amt) {
+    const own = state.ctr[name][DEV] || (state.ctr[name][DEV] = {});
+    own[key] = (own[key] || 0) + amt;
+    state[name][key] = (state[name][key] || 0) + amt;
+  }
+
+  // Bilgisayardaki sunucu (baslat.bat) ile eşitleme: oku, birleştir, gerekiyorsa geri yaz
+  async function syncServer() {
+    const r = await fetchTimed("/veri");
+    if (!r.ok) throw new Error("http " + r.status);
+    const remoteData = await r.json();
+    const merged = mergeStates(state, isObj(remoteData) ? remoteData : {});
+    adopt(merged);               // birleştirme ve uygulama aynı adımda; arada yerel değişiklik kaçmaz
+    sync.pulled = true;
+    if (!sameData(state, remoteData)) {
+      const p = await fetchTimed("/veri", { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(state) });
+      if (!p.ok) throw new Error("http " + p.status);
+    }
+  }
+
+  // ── Bulut: kayıt, kendi GitHub hesabındaki özel (gizli) bir Gist'te de durur ──
+  // Sayfa GitHub Pages'te, kayıt Gist'te olunca bilgisayar kapalıyken de (okulda, yolda) telefon çalışır.
+  // Aynı birleştirme kuralları geçerli; jeton yalnızca bu cihazın tarayıcısında saklanır.
+  const GIST_FILE = "odak-veri.json";
+  const BOOT_AT = Date.now();
+  const cloudUI = { open: false, token: "", url: "", msg: "", confirmOff: false };
+  const cloudCfg = () => { const c = read("odak.cloud", null); return c && c.t && c.g ? c : null; };
+  const cloudOn = () => !!cloudCfg();
+  const ghHeaders = (t, json) => Object.assign({ Authorization: "Bearer " + t, Accept: "application/vnd.github+json" }, json ? { "Content-Type": "application/json" } : {});
+  const b64e = (o) => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const b64d = (s) => JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, "+").replace(/_/g, "/")))));
+
+  function cloudLink() {
+    const c = cloudCfg();
+    return c && c.u ? c.u.replace(/#.*$/, "") + "#bulut=" + b64e({ t: c.t, g: c.g }) : "";
+  }
+  // Bağlantıdan ya da yalnızca koddan {t, g} çıkarır
+  function cloudParse(text) {
+    const m = /bulut=([A-Za-z0-9_-]+)/.exec(text);
+    const code = m ? m[1] : String(text).trim();
+    try { const o = b64d(code); if (o && typeof o.t === "string" && typeof o.g === "string") return o; } catch (_) {}
+    return null;
+  }
+  // Adresteki #bulut=… (telefonda QR ile açılınca) bu cihazı bağlar. Kod adreste bilerek kalır:
+  // ana ekrana eklenen kısayol da bağlı açılsın.
+  function cloudImportHash() {
+    if (!/^#bulut=/.test(location.hash)) return false;
+    const o = cloudParse(location.hash);
+    if (!o) return false;
+    const cur0 = cloudCfg();
+    if (cur0 && cur0.t === o.t && cur0.g === o.g) return false;
+    write("odak.cloud", { t: o.t, g: o.g, u: location.origin + location.pathname });
+    return true;
+  }
+  async function cloudConnect(token, pageUrl) {
+    if (!/^[A-Za-z0-9_]{20,}$/.test(token)) throw new Error("Jeton biçimi yanlış görünüyor.");
+    const r = await fetchTimed("https://api.github.com/gists", {
+      method: "POST", headers: ghHeaders(token, true),
+      body: JSON.stringify({ description: "Odak ilerleme kaydı (otomatik)", public: false, files: { [GIST_FILE]: { content: JSON.stringify(state) } } })
+    }, 20000);
+    if (r.status === 401) throw new Error("Jeton geçersiz ya da süresi dolmuş.");
+    if (r.status === 403 || r.status === 404) throw new Error("Jetonda gist izni yok. Bağlantıdaki hazır kutuyla oluştur.");
+    if (!r.ok) throw new Error("GitHub hatası: " + r.status);
+    const j = await r.json();
+    write("odak.cloud", { t: token, g: j.id, u: pageUrl || "" });
+  }
+  async function syncCloud() {
+    const c = cloudCfg();
+    if (!c) return;
+    const r = await fetchTimed("https://api.github.com/gists/" + c.g, { headers: ghHeaders(c.t) }, 15000);
+    if (r.status === 401) throw new Error("Jeton geçersiz ya da süresi dolmuş");
+    if (r.status === 404) throw new Error("Kayıt (Gist) bulunamadı");
+    if (!r.ok) throw new Error("GitHub " + r.status);
+    const g = await r.json();
+    const f = g.files && g.files[GIST_FILE];
+    let text = f ? f.content : "{}";
+    if (f && f.truncated && f.raw_url) text = await (await fetchTimed(f.raw_url, {}, 15000)).text();
+    let remoteData = {};
+    try { remoteData = JSON.parse(text || "{}"); } catch (_) {}
+    const merged = mergeStates(state, isObj(remoteData) ? remoteData : {});
+    adopt(merged);
+    if (!sameData(state, remoteData)) {
+      const p = await fetchTimed("https://api.github.com/gists/" + c.g, {
+        method: "PATCH", headers: ghHeaders(c.t, true),
+        body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(state) } } })
+      }, 20000);
+      if (!p.ok) throw new Error("GitHub " + p.status);
+    }
+    if (!sync.cfirst) { sync.cfirst = true; followLast(); }
+  }
+  // Açılıştan hemen sonra, diğer cihazda en son izlenen kursa geç (henüz bir şeye dokunulmadıysa)
+  function followLast() {
+    if (engaged || Date.now() - BOOT_AT > 20000 || !state.lastId || state.lastId === pid()) return;
+    const k = courses.findIndex((c) => cleanId(c.playlistId) === state.lastId);
+    if (k < 0) return;
+    showCourse(k);                 // damga yok: diğer cihazın kaydı ezilmez
+    clearTimeout(switchTimer);
+    switchTimer = setTimeout(() => mountPlayer(false), 250);
+  }
+
+  async function syncNow(force) {
+    const wantServer = sync.on, wantCloud = cloudOn();
+    if (!wantServer && !wantCloud) return;
+    if (sync.busy) { sync.again = true; return; }
+    sync.busy = true;
+    clearTimeout(sync.timer);
+    sync.timer = null;
+    try {
+      // Önce bulut (en geniş kaynak), sonra bilgisayardaki dosya: buluttan gelen değişiklik aynı turda dosyaya da yazılır.
+      // Bulut daha seyrek: en fazla 20 sn'de bir (zorlanmadıkça).
+      if (wantCloud && (force === true || Date.now() >= sync.cnext)) {
+        try { await syncCloud(); sync.cok = true; sync.clast = Date.now(); sync.cmsg = ""; }
+        catch (e) { sync.cok = false; sync.cmsg = (e && e.message) || ""; }
+        sync.cnext = Date.now() + 20000;
+      }
+      if (wantServer) {
+        try { await syncServer(); sync.ok = true; sync.last = Date.now(); } catch (_) { sync.ok = false; }
+      }
+    } finally {
+      sync.busy = false;
+      paintSync();
+      if (sync.again) { sync.again = false; scheduleSync(1500); }
+    }
+  }
+
+  // Sayfa kapanırken ya da arka plana giderken: birleştirmeden, son yerel durumu yazar.
+  // (Diğer cihazın o arada yaptığı değişiklikler bir sonraki eşitlemede geri birleşir.)
+  function flushRemote() {
+    if (!sync.on || !sync.pulled) return;
+    try {
+      fetch("/veri", { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(state), keepalive: true }).catch(() => {});
+    } catch (_) {}
+  }
+
+  // Birleşmiş kaydı bu cihazın durumuna işler
+  function adopt(m) {
+    const cp = state.progress[pid()];
+    const before = cp ? cp.at || 0 : 0;
+    const wasFull = !running && remain === dur(mode);
+    ["progress", "done", "applied", "notes", "reviews", "rates", "del", "ctr", "time", "watch", "pomos"].forEach((k) => { state[k] = m[k]; });
+    state.log = m.log;
+    state.lastId = m.lastId;
+    state.lastAt = m.lastAt;
+    state.prefsAt = m.prefsAt;
+    if (RATES.includes(m.rate)) state.rate = m.rate;
+    if (m.pomo) Object.assign(state.pomo, m.pomo);
+    state.savedAt = Math.max(state.savedAt, m.savedAt);
+    write(STORE, state);
+
+    paintSpeed();
+    if (ready && verified) { try { yt.setPlaybackRate(rateOf()); } catch (_) {} }
+    highlight();
+    paintStatsBtn();
+    refreshPanels();
+    if (wasFull) remain = dur(mode);
+    paintPomo();
+    if (!pop.hidden && !cloudUI.open) renderPop();
+    const np = state.progress[pid()];
+    if (np && (np.at || 0) > before) offerRemote(np);
+  }
+
+  // Diğer cihazda bu kursta daha yeni bir yere gelinmişse, burada oynatmıyorsan atlamayı öner
+  function offerRemote(p) {
+    if (!ready || !verified || !ids.length) return;
+    let t = 0, st = -1;
+    try { t = yt.getCurrentTime() || 0; st = yt.getPlayerState(); } catch (_) {}
+    if (st === 1 || engaged) return;            // burada izliyorsun; kayıt zaten seninkine göre güncellenir
+    const k = p.id ? ids.indexOf(p.id) : (p.index || 0);
+    if (k < 0) return;
+    if (k === idx && Math.abs((p.time || 0) - t) < 30) return;
+    note("Diğer cihazda bu kursta " + (k + 1) + ". videoda " + fmtClock(p.time || 0) + " noktasına gelmişsin.", { label: "Oraya git", fn: () => goToProgress(p) });
+  }
+  function goToProgress(p) {
+    note("");
+    if (!ready || !verified) return;
+    const k = p.id ? ids.indexOf(p.id) : (p.index || 0);
+    if (k < 0) return;
+    engaged = true;
+    try {
+      if (k === idx) { yt.seekTo(p.time || 0, true); yt.playVideo(); }
+      else { pendingSeek = p.time || 0; yt.playVideoAt(k); }
+    } catch (_) {}
+  }
+
+  // Ayar panelindeki ve çubuktaki eşitleme göstergesi
+  function ago(ms) {
+    const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (s < 10) return "az önce";
+    if (s < 60) return s + " sn önce";
+    if (s < 3600) return Math.floor(s / 60) + " dk önce";
+    return Math.floor(s / 3600) + " sa önce";
+  }
+  function syncText() {
+    if (!sync.on) return "kapalı";
+    if (sync.ok === false) return sync.last ? "bağlanamadı · son " + ago(sync.last) : "bağlanamadı";
+    return sync.last ? ago(sync.last) : "bekliyor";
+  }
+  function cloudText() {
+    if (!cloudOn()) return "kapalı";
+    if (sync.cok === false) return (sync.cmsg || "bağlanamadı") + (sync.clast ? " · son " + ago(sync.clast) : "");
+    return sync.clast ? ago(sync.clast) : "bekliyor";
+  }
+  function paintSync() {
+    const any = sync.on || cloudOn();
+    const bad = (sync.on && sync.ok === false) || (cloudOn() && sync.cok === false);
+    const good = (sync.on && sync.ok) || (cloudOn() && sync.cok);
+    const d = $("syncDot");
+    if (d) {
+      d.style.display = any ? "inline-block" : "none";
+      d.style.background = bad ? "#a8883f" : good ? "#2f6b48" : "#333333";
+    }
+    const v = $("syncVal");
+    if (v) v.textContent = syncText();
+    const cv = $("cloudVal");
+    if (cv) cv.textContent = cloudText();
+  }
+
+  const pidOf = (i) => cleanId(courses[i].playlistId);
+  let cur = Math.max(0, courses.findIndex((c) => cleanId(c.playlistId) === state.lastId));
+
+  let yt = null;             // YouTube oynatıcı nesnesi
+  let ready = false;
+  let ids = [];              // gösterilen listedeki video ID'leri
+  let verified = false;      // true: ids oynatıcıdan doğrulanmış canlı liste
+  let lastLive = "";         // oynatıcının en son doğrulanmış listesi
+  let liveCourse = "";       // lastLive hangi kursa ait
+  let lastRead = "";         // son okunan liste (iki okuma aynıysa liste oturmuş demektir)
+  let idx = 0;               // aktif videonun sırası
+  let gen = 0;               // kurs değişince eski işlemleri iptal etmek için
+  let pollingGen = -1;
+  let switchTimer = null;
+  let scrolledTo = -1;
+  let errStreak = 0;         // üst üste kaç video açılamadı
+  let playerToken = 0;       // her yeni oynatıcıya bir numara; eski oynatıcının olayları yok sayılır
+  let mountedPlay = false;   // bu oynatıcı kendiliğinden oynasın mı
+  let holdSave = 0;          // geçiş sırasında yanlış ilerleme kaydını engelleyen zaman damgası
+  let filterUndone = false;  // listede sadece bitmemişleri göster
+  let pendingSeek = 0;       // video açılınca gidilecek saniye
+  let engaged = false;       // bu oynatıcıda gerçekten oynatıldı ya da bu cihazdan gezinildi (yalnızca o zaman konum kaydedilir)
+  let flashTimer = null;
+
+  const pid = () => pidOf(cur);
+  const rateOf = () => state.rates[pid()] || state.rate;
+  const progressOf = (i) => state.progress[pidOf(i)] || { index: 0, time: 0 };
+  const doneOf = (key) => state.done[key] || (state.done[key] = {});
+  const totalOf = (i) => (lists[pidOf(i)] || []).length || courses[i].total || 0;
+
+  // Kaldığın videonun sırası: ID ile bul, liste değişmişse bile doğru videoya gitsin
+  function startIndex(i) {
+    const p = progressOf(i), l = lists[pidOf(i)];
+    if (p.id && l) { const k = l.indexOf(p.id); if (k >= 0) return k; }
+    return p.index || 0;
+  }
+
+  // ── Arayüz ──
+  function paintCourses() {
+    const c = courses[cur];
+    courseBtn.textContent = "";
+    const g = document.createElement("span");
+    g.className = "grp";
+    g.textContent = c.group + "  ›  ";
+    courseBtn.append(g, document.createTextNode(c.name));
+  }
+  function paintSpeed() { speedBtn.textContent = rateOf() + "×"; }
+  function paintList() {
+    wrapEl.hidden = !state.list;
+    listBtn.classList.toggle("active", state.list);
+  }
+  function paintCounter() {
+    counterEl.textContent = ids.length ? (idx + 1) + " / " + ids.length : "";
+  }
+
+  function renderList() {
+    listEl.textContent = "";
+    scrolledTo = -1;
+    ids.forEach((id, i) => {
+      const row = document.createElement("div");
+      row.className = "item";
+      row.dataset.i = i;
+      row.dataset.id = id;
+      const n = document.createElement("span");
+      n.className = "n";
+      n.textContent = i + 1;
+      const t = document.createElement("span");
+      t.className = "t";
+      t.textContent = titles[id] || ("Video " + (i + 1));
+      const nt = document.createElement("span");
+      nt.className = "nt";
+      const a = document.createElement("span");
+      a.className = "a";
+      a.textContent = "◆";
+      a.title = "Uyguladım (kurup çalıştırdım)";
+      const c = document.createElement("span");
+      c.className = "c";
+      c.textContent = "✓";
+      c.title = "Bitti olarak işaretle / geri al";
+      row.append(n, t, nt, a, c);
+      listEl.appendChild(row);
+    });
+    highlight(true);
+  }
+
+  function setItemTitle(id, title) {
+    const t = listEl.querySelector('.item[data-id="' + id + '"] .t');
+    if (t) t.textContent = title;
+    if (qIn.value) applyFilter();
+  }
+
+  // Arama ve "bitmemiş" süzgeci: aktif video her zaman görünür
+  function applyFilter() {
+    const q = qIn.value.trim().toLocaleLowerCase("tr");
+    const done = doneOf(pid());
+    const items = listEl.children;
+    for (let k = 0; k < items.length; k++) {
+      const el = items[k], id = el.dataset.id, i = parseInt(el.dataset.i, 10);
+      let ok = true;
+      if (q) ok = el.children[1].textContent.toLocaleLowerCase("tr").includes(q) || String(i + 1) === q;   // ekranda görünen metin
+      if (filterUndone && done[id]) ok = false;
+      if (i === idx) ok = true;
+      el.hidden = !ok;
+    }
+  }
+
+  function highlight(force) {
+    const items = listEl.children;
+    const key = pid();
+    const p = state.progress[key];
+    const done = doneOf(key);
+    const ap = state.applied[key] || {};
+    const nts = state.notes[key] || {};
+    for (let i = 0; i < items.length; i++) {
+      const el = items[i], id = el.dataset.id;
+      el.classList.toggle("current", i === idx);
+      el.classList.toggle("done", !!done[id]);
+      el.classList.toggle("applied", !!ap[id]);
+      el.classList.toggle("resume", !!p && (p.id ? p.id === id : p.index === i));
+      const n = (nts[id] || []).length;
+      el.children[2].textContent = n ? "✎" + n : "";
+    }
+    if (qIn.value || filterUndone) applyFilter();
+    const el = items[idx];
+    if (el && (force || scrolledTo !== idx)) {
+      scrolledTo = idx;
+      listEl.scrollTop = el.offsetTop - listEl.clientHeight / 2 + el.clientHeight / 2;
+    }
+    paintCounter();
+  }
+
+  listEl.addEventListener("click", (e) => {
+    const row = e.target.closest(".item");
+    if (!row) return;
+    if (e.target.closest(".c")) { toggleDone(row.dataset.id); return; }
+    if (e.target.closest(".a")) { toggleApplied(row.dataset.id); return; }
+    if (ready && verified && mode === "work") { engaged = true; yt.playVideoAt(parseInt(row.dataset.i, 10)); }
+  });
+
+  // ── Bitti işaretleri ──
+  function setDone(id, value) {
+    const key = pid();
+    const done = doneOf(key);
+    if (!!done[id] === value) return;
+    if (value) done[id] = Date.now();            // ne zaman bittiği tekrar ve tahmin için saklanır
+    else {
+      delete done[id];
+      if (state.reviews[key]) delete state.reviews[key][id];
+      state.del["d|" + key + "|" + id] = Date.now();   // diğer cihazda geri gelmesin
+    }
+    saveState();
+    highlight();
+    paintStatsBtn();
+    refreshPanels();
+  }
+  function toggleDone(id) { setDone(id, !doneOf(pid())[id]); }
+
+  // Oynayan video, gösterilen listeyle gerçekten eşleşiyor mu?
+  function liveVideoId() {
+    if (!ready || !verified) return null;
+    try {
+      const d = yt.getVideoData();
+      return d && d.video_id && ids.includes(d.video_id) ? d.video_id : null;
+    } catch (_) { return null; }
+  }
+  function autoMark() {
+    const id = liveVideoId();
+    if (!id) return;
+    const d = yt.getDuration(), t = yt.getCurrentTime();
+    if (d > 30 && t / d >= DONE_AT) setDone(id, true);
+  }
+
+  // ── Paneller (kurs menüsü, ilerleme, pomodoro ayarı: aynı anda biri açık) ──
+  function groupsOf() {
+    const groups = [];
+    courses.forEach((c, i) => {
+      let g = groups.find((x) => x.name === c.group);
+      if (!g) { g = { name: c.group, items: [] }; groups.push(g); }
+      g.items.push(i);
+    });
+    return groups;
+  }
+  function closePanels() { closeMenu(); closeStats(); closeNotes(); closePop(); }
+  // Sade modda alt çubuk gizli; bir panel açıksa çubuğu görünür tut
+  function updatePeek() {
+    barEl.classList.toggle("peek", !menuEl.hidden || !statsEl.hidden || !notesEl.hidden || !pop.hidden);
+    updateHot();
+  }
+  // Dokunmatik sade mod: alt kenara dokununca çubuk 6 sn görünür; çubuk görünürken dokunma bölgesi devre dışı
+  let hotTimer = null;
+  function updateHot() {
+    hotEl.classList.toggle("off", barEl.classList.contains("peek") || barEl.classList.contains("touch"));
+  }
+  function showBar() {
+    barEl.classList.add("touch");
+    updateHot();
+    clearTimeout(hotTimer);
+    hotTimer = setTimeout(() => { barEl.classList.remove("touch"); updateHot(); }, 6000);
+  }
+  hotEl.addEventListener("click", showBar);
+  barEl.addEventListener("pointerdown", () => { if (barEl.classList.contains("touch")) showBar(); });
+  function refreshPanels() {
+    if (!menuEl.hidden) renderMenu();
+    if (!statsEl.hidden) renderStats();
+  }
+
+  function renderMenu() {
+    menuEl.textContent = "";
+    groupsOf().forEach((g) => {
+      const sec = document.createElement("div");
+      const h = document.createElement("h3");
+      h.textContent = g.name;
+      sec.appendChild(h);
+      g.items.forEach((i) => {
+        const key = pidOf(i);
+        const b = document.createElement("button");
+        b.type = "button";
+        b.classList.toggle("active", i === cur);
+        const name = document.createElement("span");
+        name.textContent = courses[i].name;
+        const meta = document.createElement("span");
+        meta.className = "meta";
+        const doneN = Object.keys(state.done[key] || {}).length;
+        const total = totalOf(i);
+        const p = state.progress[key];
+        let txt = "";
+        if (p && (p.index > 0 || p.time > 0)) txt += "▸" + (p.index + 1) + "   ";
+        if (total) txt += doneN + "/" + total;
+        else if (doneN) txt += doneN + " ✓";
+        meta.textContent = txt;
+        b.append(name, meta);
+        b.addEventListener("click", () => selectCourse(i));
+        sec.appendChild(b);
+      });
+      menuEl.appendChild(sec);
+    });
+  }
+  function openMenu() { closePanels(); renderMenu(); menuEl.hidden = false; courseBtn.classList.add("active"); courseBtn.setAttribute("aria-expanded", "true"); updatePeek(); }
+  function closeMenu() { menuEl.hidden = true; courseBtn.classList.remove("active"); courseBtn.setAttribute("aria-expanded", "false"); updatePeek(); }
+  function toggleMenu() { if (menuEl.hidden) openMenu(); else closeMenu(); }
+  courseBtn.addEventListener("click", toggleMenu);
+
+  // ── İlerleme paneli ──
+  function fmtDur(sec) {
+    const m = Math.round(sec / 60);
+    if (m < 60) return m + " dk";
+    return Math.floor(m / 60) + " sa " + (m % 60) + " dk";
+  }
+  function streak() {
+    let n = 0;
+    const d = new Date();
+    if ((state.time[dayKey(d)] || 0) < STREAK_MIN) d.setDate(d.getDate() - 1);   // bugün henüz bitmedi, seri bozulmaz
+    while ((state.time[dayKey(d)] || 0) >= STREAK_MIN) { n++; d.setDate(d.getDate() - 1); }
+    return n;
+  }
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  function renderStats() {
+    statsEl.textContent = "";
+    const today = dayKey();
+    const DAYS = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
+
+    const week = [];
+    for (let k = 6; k >= 0; k--) {
+      const d = new Date();
+      d.setDate(d.getDate() - k);
+      week.push({ key: dayKey(d), name: DAYS[d.getDay()], sec: state.time[dayKey(d)] || 0 });
+    }
+    const weekSec = week.reduce((a, w) => a + w.sec, 0);
+    const cnt = (obj, i) => Object.keys(obj[pidOf(i)] || {}).length;
+    const doneTotal = courses.reduce((a, c, i) => a + cnt(state.done, i), 0);
+    const appliedTotal = courses.reduce((a, c, i) => a + cnt(state.applied, i), 0);
+
+    const sum = el("div", "sum span");
+    [
+      ["Bugün", fmtDur(state.time[today] || 0) + " · " + (state.pomos[today] || 0) + " pomodoro"],
+      ["Son 7 gün", fmtDur(weekSec)],
+      ["Seri", streak() + " gün"],
+      ["Biten video", String(doneTotal)],
+      ["Uyguladım", String(appliedTotal)]
+    ].forEach(([k, v]) => {
+      const box = el("div");
+      box.append(el("div", "k", k), el("div", "v", v));
+      sum.appendChild(box);
+    });
+    statsEl.appendChild(sum);
+
+    const chart = el("div", "week span");
+    const scale = Math.max(3600, ...week.map((w) => w.sec));
+    week.forEach((w) => {
+      const col = el("div", "col" + (w.key === today ? " today" : ""));
+      const bar = el("div", "b" + (w.sec >= STREAK_MIN ? " on" : ""));
+      bar.style.height = Math.max(2, Math.round((w.sec / scale) * 48)) + "px";
+      col.title = w.key + " · " + fmtDur(w.sec);
+      col.append(bar, el("div", "d", w.name));
+      chart.appendChild(col);
+    });
+    statsEl.appendChild(chart);
+
+    // Haftalık hedef (pazartesiden bugüne)
+    if (pomo.goalH || pomo.goalV) {
+      const now = new Date();
+      const off = (now.getDay() + 6) % 7;
+      let sec = 0;
+      for (let k = 0; k <= off; k++) {
+        sec += state.time[dayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - off + k))] || 0;
+      }
+      const startMs = new Date(now.getFullYear(), now.getMonth(), now.getDate() - off).getTime();
+      let vids = 0;
+      courses.forEach((c, i) => Object.values(state.done[pidOf(i)] || {}).forEach((ts) => {
+        if (isStamp(ts) && ts >= startMs) vids++;
+      }));
+      const box = el("div", "span");
+      const h = el("h3");
+      h.append(el("span", null, "Bu haftaki hedef"), el("span"));
+      box.appendChild(h);
+      const row = (label, text, frac) => {
+        const r = el("div", "gr");
+        const mini = el("div", "mini");
+        const fill = document.createElement("i");
+        fill.style.width = Math.min(100, Math.round(frac * 100)) + "%";
+        mini.appendChild(fill);
+        r.append(el("span", null, label), mini, el("span", "ct", text));
+        box.appendChild(r);
+      };
+      if (pomo.goalH) row("Süre", (sec / 3600).toFixed(1).replace(".", ",") + " / " + pomo.goalH + " sa", sec / (pomo.goalH * 3600));
+      if (pomo.goalV) row("Video", vids + " / " + pomo.goalV, vids / pomo.goalV);
+      statsEl.appendChild(box);
+    }
+
+    // Tekrar zamanı (3 gün ve 1 hafta sonra)
+    const due = dueReviews();
+    if (due.length) {
+      const box = el("div", "span");
+      const h = el("h3");
+      h.append(el("span", null, "Tekrar zamanı"), el("span", null, due.length + " video"));
+      box.appendChild(h);
+      due.slice(0, 6).forEach((r) => {
+        const row = el("div", "rv go");
+        const t = el("span", "rvt", courses[r.i].name + " · " + titleOf(r.key, r.id));
+        t.title = "Videoya git";
+        t.addEventListener("click", () => openVideo(r.key, r.id));
+        const ok = el("span", "rvk", "✓");
+        ok.title = "Tekrar ettim";
+        ok.addEventListener("click", () => markReviewed(r.key, r.id));
+        row.append(t, el("span", "rvs", r.st === 0 ? "3. gün" : "1. hafta"), ok);
+        box.appendChild(row);
+      });
+      if (due.length > 6) box.appendChild(el("div", "rv", "+" + (due.length - 6) + " video daha"));
+      statsEl.appendChild(box);
+    }
+
+    // Alan alan ilerleme
+    groupsOf().forEach((g) => {
+      const sec = el("div");
+      const watched = g.items.reduce((a, i) => a + (state.watch[pidOf(i)] || 0), 0);
+      const h = el("h3");
+      h.append(el("span", null, g.name), el("span", null, watched ? fmtDur(watched) : ""));
+      sec.appendChild(h);
+      g.items.forEach((i) => {
+        const n = cnt(state.done, i), u = cnt(state.applied, i);
+        const total = totalOf(i);
+        const row = el("div", "cr");
+        const mini = el("div", "mini");
+        const fill = document.createElement("i");
+        fill.style.width = total ? Math.min(100, Math.round((n / total) * 100)) + "%" : "0%";
+        mini.appendChild(fill);
+        row.append(el("span", null, courses[i].name), mini, el("span", "ct", total ? n + "/" + total : (n ? String(n) : "–")), el("span", "ap", u ? "◆" + u : ""));
+        sec.appendChild(row);
+      });
+      statsEl.appendChild(sec);
+    });
+
+    // Tahmini bitiş: son 4 haftadaki hızına göre
+    const fc = forecast();
+    if (fc.length) {
+      const box = el("div", "span");
+      const h = el("h3");
+      h.append(el("span", null, "Tahmini bitiş (son 4 haftadaki hızınla)"), el("span"));
+      box.appendChild(h);
+      fc.forEach((f) => {
+        const row = el("div", "rv");
+        row.append(el("span", "rvt", courses[f.i].name), el("span", "rvs", "~" + f.weeks + " hafta · haftada " + f.perWeek.toFixed(1).replace(".", ",") + " video"));
+        box.appendChild(row);
+      });
+      statsEl.appendChild(box);
+    }
+
+    // Son oturumlar
+    const logs = state.log.filter((e) => e.intent || e.learned).slice(-5).reverse();
+    if (logs.length) {
+      const box = el("div", "span");
+      const h = el("h3");
+      h.append(el("span", null, "Son oturumlar"), el("span"));
+      box.appendChild(h);
+      logs.forEach((e) => {
+        const d = new Date(e.ts);
+        const when = DAYS[d.getDay()] + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+        const ci = courses.findIndex((c, i) => pidOf(i) === e.pid);
+        const text = (e.intent ? e.intent : "") + (e.intent && e.learned ? "  →  " : "") + (e.learned || "");
+        const row = el("div", "rv");
+        const t = el("span", "rvt", text);
+        t.title = text;
+        row.append(el("span", "rvs", when + (ci >= 0 ? " · " + courses[ci].name : "")), t);
+        box.appendChild(row);
+      });
+      statsEl.appendChild(box);
+    }
+  }
+  function openStats() { closePanels(); renderStats(); statsEl.hidden = false; statsBtn.classList.add("active"); updatePeek(); }
+  function closeStats() { statsEl.hidden = true; statsBtn.classList.remove("active"); updatePeek(); }
+  function toggleStats() { if (statsEl.hidden) openStats(); else closeStats(); }
+  statsBtn.addEventListener("click", toggleStats);
+
+  // ── Uyguladım, notlar, tekrar, planlama, arama, oturum ──
+  const DAY = 86400000;
+  const isStamp = (v) => typeof v === "number" && v > 1e12;
+  function fmtClock(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    const z = (n) => String(n).padStart(2, "0");
+    return h ? h + ":" + z(m) + ":" + z(s) : m + ":" + z(s);
+  }
+  function titleOf(key, id) {
+    if (titles[id]) return titles[id];
+    const k = (lists[key] || []).indexOf(id);
+    return k >= 0 ? "Video " + (k + 1) : "Video";
+  }
+  function flash(msg) {
+    note(msg);
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => { if (noteEl.textContent === msg) note(""); }, 4000);
+  }
+
+  // Uyguladım: videodakini gerçekten kurup çalıştırdın mı
+  function setApplied(id, value) {
+    const a = state.applied[pid()] || (state.applied[pid()] = {});
+    if (!!a[id] === value) return;
+    if (value) a[id] = Date.now();
+    else { delete a[id]; state.del["a|" + pid() + "|" + id] = Date.now(); }
+    saveState();
+    highlight();
+    refreshPanels();
+  }
+  function toggleApplied(id) { setApplied(id, !(state.applied[pid()] || {})[id]); }
+
+  // Aralıklı tekrar: bitirdikten 3 gün ve 7 gün sonra
+  function dueReviews() {
+    const out = [], now = Date.now();
+    courses.forEach((c, i) => {
+      const key = pidOf(i), d = state.done[key] || {};
+      Object.keys(d).forEach((id) => {
+        if (!isStamp(d[id])) return;                  // eski kayıtlarda tarih yok
+        const st = (state.reviews[key] || {})[id] || 0;
+        if (st >= 2) return;
+        const dueAt = d[id] + (st === 0 ? 3 : 7) * DAY;
+        if (now >= dueAt) out.push({ i, key, id, st, dueAt });
+      });
+    });
+    return out.sort((a, b) => a.dueAt - b.dueAt);
+  }
+  function markReviewed(key, id) {
+    const r = state.reviews[key] || (state.reviews[key] = {});
+    r[id] = (r[id] || 0) + 1;
+    saveState();
+    paintStatsBtn();
+    refreshPanels();
+  }
+  function paintStatsBtn() {
+    const n = dueReviews().length;
+    statsBtn.textContent = n ? "İlerleme ·" + n : "İlerleme";
+  }
+
+  // Tahmini bitiş: son 4 haftada en az 2 video bitirdiysen
+  function forecast() {
+    const out = [], now = Date.now();
+    courses.forEach((c, i) => {
+      const total = totalOf(i);
+      if (!total) return;
+      const d = state.done[pidOf(i)] || {};
+      const left = total - Object.keys(d).length;
+      const recent = Object.values(d).filter((ts) => isStamp(ts) && now - ts <= 28 * DAY).length;
+      if (left <= 0 || recent < 2) return;
+      const perWeek = recent / 4;
+      out.push({ i, left, perWeek, weeks: Math.max(1, Math.ceil(left / perWeek)) });
+    });
+    return out;
+  }
+
+  // Başka bir kursun belirli videosuna git
+  function openVideo(key, id) {
+    const i = courses.findIndex((c, k) => pidOf(k) === key);
+    if (i < 0) return;
+    const k = (lists[key] || []).indexOf(id);
+    closePanels();
+    if (i === cur) {
+      if (ready && verified && k >= 0) { engaged = true; yt.playVideoAt(k); }
+      return;
+    }
+    state.progress[key] = { index: Math.max(0, k), id, time: 0 };
+    saveState();
+    selectCourse(i);
+  }
+
+  // Devam: bu kurstaki bitmemiş ilk videoya git
+  function continueCourse() {
+    if (!ready || !verified || mode !== "work") return;
+    engaged = true;
+    const done = doneOf(pid());
+    const k = ids.findIndex((id) => !done[id]);
+    if (k < 0) { flash("Bu kursta bitmemiş video kalmadı."); return; }
+    const p = state.progress[pid()];
+    const t = p && p.id === ids[k] ? (p.time || 0) : 0;
+    try {
+      if (k === idx) { if (t > 0) yt.seekTo(t, true); yt.playVideo(); }
+      else { pendingSeek = t; yt.playVideoAt(k); }
+    } catch (_) {}
+  }
+
+  // Zaman damgalı notlar
+  let noteCtx = null;
+  function openNotes() {
+    if (!ready || !verified || !ids[idx]) { flash("Not almak için videonun yüklenmesini bekle."); return; }
+    closePanels();
+    let t = 0, playing = false;
+    try {
+      t = yt.getCurrentTime() || 0;
+      playing = yt.getPlayerState() === 1;
+      if (playing) yt.pauseVideo();
+    } catch (_) {}
+    noteCtx = { id: ids[idx], t: Math.floor(t), playing };
+    renderNotes();
+    notesEl.hidden = false;
+    notesBtn.classList.add("active");
+    updatePeek();
+    const inp = notesEl.querySelector("input");
+    if (inp) inp.focus();
+  }
+  function closeNotes() {
+    if (notesEl.hidden) return;
+    notesEl.hidden = true;
+    notesBtn.classList.remove("active");
+    const c = noteCtx;
+    noteCtx = null;
+    if (c && c.playing && ready && mode === "work") { try { yt.playVideo(); } catch (_) {} }
+    updatePeek();
+  }
+  function toggleNotes() { if (notesEl.hidden) openNotes(); else closeNotes(); }
+
+  function renderNotes() {
+    notesEl.textContent = "";
+    const id = noteCtx.id, key = pid();
+    const list = (state.notes[key] || {})[id] || [];
+    const h = el("h3");
+    h.append(el("span", null, "Not · " + titleOf(key, id)), el("span", null, fmtClock(noteCtx.t)));
+    notesEl.appendChild(h);
+
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.className = "ni";
+    inp.maxLength = 300;
+    inp.autocomplete = "off";
+    inp.spellcheck = false;
+    inp.placeholder = fmtClock(noteCtx.t) + " anına not yaz, Enter ile kaydet";
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const text = inp.value.trim();
+        if (!text) return;
+        const byVideo = state.notes[key] || (state.notes[key] = {});
+        const arr = byVideo[id] || (byVideo[id] = []);
+        arr.push({ t: noteCtx.t, text, at: Date.now() });
+        arr.sort((a, b) => a.t - b.t);
+        saveState();
+        highlight();
+        renderNotes();
+        const again = notesEl.querySelector("input");
+        if (again) again.focus();
+      } else if (e.key === "Escape") {
+        closeNotes();
+      }
+    });
+    notesEl.appendChild(inp);
+
+    list.forEach((n, j) => {
+      const row = el("div", "nr");
+      const ck = el("span", "ck", fmtClock(n.t));
+      ck.title = "Bu ana git";
+      ck.addEventListener("click", () => { try { yt.seekTo(n.t, true); } catch (_) {} });
+      const x = el("span", "x", "×");
+      x.title = "Notu sil";
+      x.addEventListener("click", () => {
+        state.del["n|" + key + "|" + id + "|" + n.at] = Date.now();
+        list.splice(j, 1);
+        if (!list.length) delete state.notes[key][id];
+        saveState();
+        highlight();
+        renderNotes();
+      });
+      row.append(ck, el("span", null, n.text), x);
+      notesEl.appendChild(row);
+    });
+
+    const act = el("div", "act", "Bu kursun notlarını dışa aktar (.md)");
+    act.addEventListener("click", exportNotes);
+    notesEl.appendChild(act);
+  }
+
+  function exportNotes() {
+    const key = pid(), byVideo = state.notes[key] || {};
+    const l = lists[key] || [];
+    const order = l.filter((id) => (byVideo[id] || []).length);
+    if (!order.length) { flash("Bu kursta henüz not yok."); return; }
+    let md = "# " + courses[cur].name + " – Notlar\n";
+    order.forEach((id) => {
+      md += "\n## " + (l.indexOf(id) + 1) + ". " + titleOf(key, id) + "\n";
+      byVideo[id].forEach((n) => { md += "- [" + fmtClock(n.t) + "] " + n.text + "\n"; });
+    });
+    try {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([md], { type: "text/markdown" }));
+      a.download = "odak-notlar-" + courses[cur].name.replace(/[^\wığüşöçİĞÜŞÖÇ-]+/g, "-") + ".md";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch (_) {}
+    let copy;
+    try { copy = navigator.clipboard.writeText(md); } catch (_) { copy = null; }
+    if (copy && copy.then) copy.then(() => flash("Notlar panoya kopyalandı ve .md olarak indirildi.")).catch(() => flash("Notlar .md olarak indirildi."));
+    else flash("Notlar .md olarak indirildi.");
+  }
+
+  // Tam ekran soru kutusu (tur başı niyeti için)
+  let askCb = null;
+  function openAsk(label, placeholder, ok, skip) {
+    askLbl.textContent = label;
+    askIn.value = "";
+    askIn.placeholder = placeholder;
+    askCb = { ok, skip };
+    askEl.hidden = false;
+    askIn.focus();
+  }
+  function closeAsk() { askEl.hidden = true; askCb = null; askIn.blur(); }
+  askIn.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { const v = askIn.value.trim(), cb = askCb; closeAsk(); if (cb) cb.ok(v); }
+    else if (e.key === "Escape") { const cb = askCb; closeAsk(); if (cb) cb.skip(); }
+  });
+  askSkip.addEventListener("click", () => { const cb = askCb; closeAsk(); if (cb) cb.skip(); });
+
+  // Tur başında niyet, tur sonunda "ne öğrendim"
+  let currentIntent = "";
+  function askIntent(go) {
+    const fresh = mode === "work" && !running && remain === dur("work");
+    if (!pomo.intent || !fresh) { go(); return; }
+    openAsk("Bu turda ne yapacaksın?", "örn. Ders 12: PWM çıkışı, devreyi kur", (v) => { currentIntent = v; go(); }, () => { currentIntent = ""; go(); });
+  }
+  let pendingReflect = null;
+  function showReflect(entry) {
+    pendingReflect = entry;
+    reflectIn.value = "";
+    reflectIn.placeholder = "Bu turda ne öğrendin? Tek cümle, Enter";
+    reflectIn.hidden = false;
+    setTimeout(() => { if (pendingReflect === entry) reflectIn.focus(); }, 100);
+  }
+  function hideReflect() { pendingReflect = null; reflectIn.hidden = true; reflectIn.blur(); }
+  reflectIn.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      const v = reflectIn.value.trim();
+      if (pendingReflect && v) { pendingReflect.learned = v; saveState(); refreshPanels(); }
+      hideReflect();
+    } else if (e.key === "Escape") hideReflect();
+  });
+
+  // Oturumu başlat: niyet sor, sade moda geç, pomodoroyu ve videoyu başlat
+  function sessionStart() {
+    audioInit();
+    alarmStop();
+    askNotify();
+    const zen = () => { if (!document.body.classList.contains("zen")) toggleZen(); };
+    if (running) { zen(); return; }
+    askIntent(() => { zen(); pomoStart(); });
+  }
+
+  // Arama ve süzgeç
+  qIn.addEventListener("input", applyFilter);
+  qIn.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { qIn.value = ""; applyFilter(); qIn.blur(); }
+  });
+  undoneBtn.addEventListener("click", () => {
+    filterUndone = !filterUndone;
+    undoneBtn.classList.toggle("on", filterUndone);
+    applyFilter();
+  });
+  function focusSearch() {
+    if (document.body.classList.contains("zen")) return;
+    if (!state.list) toggleList();
+    qIn.focus();
+    qIn.select();
+  }
+  resumeBtn.addEventListener("click", continueCourse);
+  notesBtn.addEventListener("click", toggleNotes);
+
+  // ── Liste ve ilerleme ──
+  function startPoll() {
+    if (pollingGen === gen) return;
+    pollingGen = gen;
+    pollList(gen, 0);
+  }
+
+  // Her kurs için oynatıcı sıfırdan kurulduğundan, ondan okunan liste kesinlikle o kursun listesidir.
+  function pollList(myGen, tries) {
+    if (myGen !== gen || !ready || verified) return;
+    let l = null;
+    try { l = yt.getPlaylist(); } catch (_) {}
+    if (l && l.length) {
+      const me = pid();
+      const changed = l.join() !== ids.join();
+      ids = l;
+      verified = true;
+      lists[me] = l;
+      write(LISTS, lists);
+      listEl.classList.remove("loading");
+      if (changed) renderList();
+      resumeIfNeeded();
+      syncIndex();
+      fetchTitles(myGen);
+      refreshPanels();
+      return;
+    }
+    if (tries < 40) setTimeout(() => pollList(myGen, tries + 1), 400);
+    else {
+      pollingGen = -1;     // vazgeçti; bir sonraki oynatıcı olayı yeniden dener
+      note("Liste yüklenemedi. Oynatma listesi gizli ya da silinmiş olabilir; başka bir kurs seç ya da sayfayı yenile.");
+    }
+  }
+
+  function syncIndex() {
+    if (!ready || !verified) return;
+    let i = -1;
+    try { i = yt.getPlaylistIndex(); } catch (_) {}
+    if (i >= 0) idx = i;
+    const d = yt.getVideoData();
+    if (d && d.video_id && d.title && ids[idx] === d.video_id && titles[d.video_id] !== d.title) {
+      titles[d.video_id] = d.title;
+      setItemTitle(d.video_id, d.title);
+    }
+    highlight();
+  }
+
+  function saveProgress() {
+    if (!ready || !verified || !ids.length) return;
+    if (!engaged) return;       // yalnızca açılmış/duran oynatıcının eski konumu diğer cihazdaki yeni kaydı ezmesin
+    if (Date.now() < holdSave) return;
+    let i = -1, l = null, t = 0, d = 0;
+    try { i = yt.getPlaylistIndex(); l = yt.getPlaylist(); t = yt.getCurrentTime() || 0; d = yt.getDuration() || 0; }
+    catch (_) { return; }
+    // Oynatıcı hâlâ bu kursun listesini taşımıyorsa kaydetme (geçiş anında yanlış kayıt olmasın)
+    if (!(i >= 0) || !l || l.join() !== ids.join()) return;
+    // Video neredeyse bitmişse bir sonrakinden devam et
+    if (d > 30 && t / d >= 0.97 && i + 1 < ids.length) { i++; t = 0; }
+    const prev = state.progress[pid()];
+    if (prev && prev.index === i && prev.id === ids[i] && Math.abs((prev.time || 0) - Math.floor(t)) < 1) return;   // değişmediyse damga atma
+    const at = Date.now();
+    state.progress[pid()] = { index: i, id: ids[i], time: Math.floor(t), at: at };
+    state.lastId = pid();
+    state.lastAt = at;
+    saveState();
+  }
+
+  // Başlıkları arka planda çek; erişilemezse sadece izlenen videoların başlığı görünür.
+  async function fetchTitles(myGen) {
+    const todo = ids.filter((id) => !titles[id]);
+    let stop = false;
+    async function worker() {
+      while (todo.length && !stop && myGen === gen) {
+        const id = todo.shift();
+        try {
+          const r = await fetch("https://www.youtube.com/oembed?format=json&url=" +
+            encodeURIComponent("https://www.youtube.com/watch?v=" + id));
+          if (!r.ok) continue;
+          const j = await r.json();
+          titles[id] = j.title;
+          setItemTitle(id, j.title);
+        } catch (_) { stop = true; }
+      }
+    }
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    write(TITLES, titles);
+  }
+
+  // ── Kurs değiştirme ──
+  // 1) showCourse: arayüzü ve önbellekteki listeyi anında değiştirir.
+  // 2) loadCourse: kısa bir beklemeden sonra oynatıcıya yükler (hızlı tıklamalarda sadece sonuncusu yüklenir).
+  function showCourse(i, stamp) {
+    cur = i;
+    gen++;
+    verified = false;
+    pollingGen = -1;
+    lastRead = "";
+    errStreak = 0;
+    note("");
+    if (stamp) { state.lastId = pid(); state.lastAt = Date.now(); saveState(); }   // açılışta damga atılmaz; diğer cihazın "son kurs"u ezilmesin
+    ids = lists[pid()] || [];
+    idx = startIndex(i);
+    qIn.value = "";
+    listEl.classList.add("loading");
+    renderList();
+    closeMenu();
+    paintCourses();
+    paintSpeed();
+  }
+
+  function needsResume(i) {
+    const p = progressOf(i);
+    return startIndex(i) > 0 || (p.time || 0) > 0;
+  }
+
+  // Oynatıcıyı bu kurs için sıfırdan kurar: eski iframe silinir, yenisi kursun adresiyle açılır.
+  // Böylece ekrandaki video ve liste her zaman seçili kursla aynı olur.
+  function mountPlayer(play) {
+    if (!window.YT || !YT.Player) return;
+    const token = ++playerToken;
+    ready = false;
+    verified = false;
+    engaged = false;
+    pollingGen = -1;
+    try { if (yt && yt.destroy) yt.destroy(); } catch (_) {}
+    yt = null;
+    const old = $("yt");
+    if (old) old.remove();
+    mountedPlay = !!play && mode === "work";
+    const f = document.createElement("iframe");
+    f.id = "yt";
+    f.title = "Kurs oynatıcı";
+    f.allow = "autoplay; encrypted-media; picture-in-picture";
+    f.allowFullscreen = true;
+    f.referrerPolicy = "strict-origin-when-cross-origin";
+    // Kaldığın yerden devam edilecekse kendiliğinden oynatma; önce doğru videoya gidilir
+    f.src = embedSrc(pid()) + (mountedPlay && !needsResume(cur) ? "&autoplay=1" : "");
+    document.querySelector(".player").insertBefore(f, $("rest"));
+    yt = new YT.Player(f, { events: {
+      onReady: () => { if (token === playerToken) onReady(); },
+      onStateChange: (e) => { if (token === playerToken) onStateChange(e); },
+      onError: (e) => { if (token === playerToken) onError(e); }
+    } });
+  }
+
+  // Liste yüklenince kaldığın videoya ve saniyeye git
+  function resumeIfNeeded() {
+    if (!needsResume(cur)) return;
+    const p = progressOf(cur);
+    const opts = { listType: "playlist", list: pid(), index: startIndex(cur), startSeconds: p.time || 0 };
+    holdSave = Date.now() + 4000;
+    try { if (mountedPlay) yt.loadPlaylist(opts); else yt.cuePlaylist(opts); } catch (_) {}
+  }
+
+  function selectCourse(i) {
+    if (i === cur) { closeMenu(); return; }
+    saveProgress();
+    showCourse(i, true);
+    clearTimeout(switchTimer);
+    switchTimer = setTimeout(() => mountPlayer(true), 250);
+  }
+
+  // ── Kontroller ──
+  function prev() { if (ready && verified && mode === "work") { engaged = true; yt.previousVideo(); } }
+  function next() { if (ready && verified && mode === "work") { engaged = true; yt.nextVideo(); } }
+  function toggleList() { state.list = !state.list; saveState(); paintList(); highlight(true); }
+  function toggleZen() {
+    document.body.classList.toggle("zen");
+    zenBtn.classList.toggle("active", document.body.classList.contains("zen"));
+    barEl.classList.remove("touch");
+    updateHot();
+    closePanels();
+    paintList();                         // liste ayarına göre yeniden göster
+    renderList();                        // içeriği baştan çiz (gizliyken boş kalmasın)
+    if (ready && !verified) startPoll();
+  }
+  function cycleSpeed() {
+    const next = RATES[(RATES.indexOf(rateOf()) + 1) % RATES.length];
+    state.rates[pid()] = next;           // hız her kurs için ayrı hatırlanır
+    state.prefsAt = Date.now();
+    saveState();
+    paintSpeed();
+    if (ready) { try { yt.setPlaybackRate(next); } catch (_) {} }
+  }
+
+  $("prev").addEventListener("click", prev);
+  $("next").addEventListener("click", next);
+  speedBtn.addEventListener("click", cycleSpeed);
+  listBtn.addEventListener("click", toggleList);
+  zenBtn.addEventListener("click", toggleZen);
+
+  // Klavye kısayolları (odak videonun dışındayken):
+  // N sonraki, P önceki, L liste, K kurslar, I ilerleme, F sade mod, S hız,
+  // D bitti, U uyguladım, M not, R devam, B oturumu başlat, T pomodoro, / ara
+  addEventListener("keydown", (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA") return;      // yazarken kısayollar çalışmasın
+    if (!askEl.hidden) return;
+    const k = e.key.toLowerCase();
+    if (k === "n") next();
+    else if (k === "p") prev();
+    else if (k === "l") toggleList();
+    else if (k === "k") toggleMenu();
+    else if (k === "i") toggleStats();
+    else if (k === "f") toggleZen();
+    else if (k === "s") cycleSpeed();
+    else if (k === "d") { const id = ids[idx]; if (id && verified) toggleDone(id); }
+    else if (k === "u") { const id = ids[idx]; if (id && verified) toggleApplied(id); }
+    else if (k === "m") { e.preventDefault(); toggleNotes(); }
+    else if (k === "r") continueCourse();
+    else if (k === "b") sessionStart();
+    else if (k === "t") pomoToggle();
+    else if (k === "/") { e.preventDefault(); focusSearch(); }
+    else if (k === "escape") {
+      if (!menuEl.hidden || !statsEl.hidden || !notesEl.hidden || !pop.hidden) closePanels();
+      else if (document.body.classList.contains("zen")) toggleZen();
+    }
+  });
+
+  // ── YouTube IFrame API ──
+  function onReady() {
+    ready = true;
+    if (location.protocol.indexOf("http") === 0) note("");
+    try { yt.setPlaybackRate(rateOf()); } catch (_) {}
+    startPoll();
+  }
+
+  function onStateChange(e) {
+    const s = e.data;                        // 0 bitti, 1 oynuyor, 2 duraklatıldı, 3 tamponlanıyor, 5 hazır
+    if (s === 1 || s === 3 || s === 5) {
+      if (!verified) startPoll();
+      syncIndex();
+    }
+    if (s === 1) {
+      engaged = true;
+      errStreak = 0;
+      yt.setPlaybackRate(rateOf());
+      if (pendingSeek > 0) { try { yt.seekTo(pendingSeek, true); } catch (_) {} }
+      pendingSeek = 0;
+    }
+    if (s === 0) {
+      const id = liveVideoId();
+      if (id) setDone(id, true);
+    }
+    if (s === 2) { saveProgress(); scheduleSync(1500); }
+  }
+
+  // 100: silinmiş/gizli, 101-150: gömülmesine izin yok, 153: yönlendiren bilgisi yok, 2/5: geçersiz istek / oynatıcı hatası
+  function onError(e) {
+    const c = e.data;
+    if (c === 153) {
+      note("YouTube Hata 153: sayfa dosya olarak değil, baslat.bat sunucusu üzerinden (http://…) açılmalı.");
+    } else if (c === 100 || c === 101 || c === 150) {
+      errStreak++;
+      if (errStreak <= 3 && ids.length && idx + 1 < ids.length) {
+        note("Bu video açılamıyor (kod " + c + "); sonrakine geçiliyor.");
+        setTimeout(() => { if (ready && verified && mode === "work") yt.nextVideo(); }, 1200);
+      } else {
+        note("Videolar açılamıyor (kod " + c + "). Liste gizli ya da gömmeye kapalı olabilir.");
+      }
+    } else {
+      note("Oynatıcı hatası (kod " + c + "). Sayfayı yenilemek genelde çözer.");
+    }
+  }
+
+  window.onYouTubeIframeAPIReady = function () {
+    showCourse(cur);
+    mountPlayer(false);
+  };
+
+  // Her 5 sn: ilerleme kaydı, izleme süresi, otomatik "bitti"
+  let lastTick = Date.now();
+  setInterval(() => {
+    const now = Date.now();
+    const dt = Math.min(15, (now - lastTick) / 1000);
+    lastTick = now;
+    if (ready && verified && yt.getPlayerState() === 1) {
+      bump("time", dayKey(), dt);
+      bump("watch", pid(), dt);
+      saveProgress();
+      autoMark();
+      if (!statsEl.hidden) renderStats();
+    }
+  }, 5000);
+
+  function persistNow() { saveProgress(); flushRemote(); }
+  addEventListener("beforeunload", persistNow);
+  addEventListener("pagehide", persistNow);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) persistNow(); else syncNow(true); });
+  addEventListener("pageshow", (e) => { if (e.persisted) syncNow(); });
+  addEventListener("online", () => syncNow(true));
+  setInterval(() => { if (!document.hidden) { syncNow(); paintSync(); } }, 30000);
+
+
+  // ── Pomodoro ──
+  // Varsayılan: 50 dk çalışma, 10 dk mola, 3 turdan sonra 25 dk uzun mola. Ayarlardan değişir.
+  const pomo = state.pomo;
+  const SETS = [
+    ["work",   "Çalışma (dk)",   5, 120, 5],
+    ["short",  "Mola (dk)",      1,  30, 1],
+    ["long",   "Uzun mola (dk)", 5,  60, 5],
+    ["rounds", "Tur sayısı",     1,   8, 1],
+    ["alarm",  "Alarm süresi (sn)", 3, 60, 3],
+    ["vol",    "Alarm sesi (%)", 10, 100, 10],
+    ["intent", "Tur başında niyet sor", 0, 1, 1],
+    ["reflect","Mola başında not sor", 0, 1, 1],
+    ["goalH",  "Haftalık hedef (saat)", 0, 40, 1],
+    ["goalV",  "Haftalık hedef (video)", 0, 60, 1]
+  ];
+  const pomoBtn = $("pomo"), pomoTime = $("pomoTime"), pomoRound = $("pomoRound");
+  const restEl = $("rest"), pop = $("pop");
+
+  let mode = "work";       // "work" | "short" | "long"
+  let running = false;
+  let done = 0;            // bu turda biten çalışma sayısı
+  let endAt = 0, tick = null;
+  const dur = (m) => (m === "work" ? pomo.work : m === "short" ? pomo.short : pomo.long) * 60000;
+  let remain = dur("work");
+
+  function fmt(ms) {
+    const s = Math.max(0, Math.ceil(ms / 1000));
+    return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+  }
+
+  let actx = null;
+  function audioInit() {
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === "suspended") actx.resume();
+    } catch (_) {}
+  }
+  // Alarm: üç notalı çan sesi, ayarlardaki süre boyunca tekrarlanır.
+  // Sayfada herhangi bir yere tıklayınca ya da tuşa basınca susar.
+  let alarmTimer = null, alarmGain = null;
+
+  // iPhone'da WebAudio, sessiz anahtarı açıkken susar; alarm çalarken oturumu "playback"e alıp sonra eski haline döndürür
+  function audioSession(type) { try { if (navigator.audioSession && navigator.audioSession.type !== type) navigator.audioSession.type = type; } catch (_) {} }
+  function alarmStop() {
+    clearInterval(alarmTimer);
+    alarmTimer = null;
+    audioSession("auto");
+    if (alarmGain && actx) { try { alarmGain.gain.setTargetAtTime(0, actx.currentTime, 0.04); } catch (_) {} }
+    alarmGain = null;
+  }
+  // Çan: temel ses + iki üst ton, yavaşça sönen zarf
+  function chime(dest, t0, freq) {
+    [[1, 1], [2.01, 0.35], [3.02, 0.15]].forEach(([m, amp]) => {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = "sine";
+      o.frequency.value = freq * m;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.3 * amp, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.8);
+      o.connect(g); g.connect(dest);
+      o.start(t0); o.stop(t0 + 1.9);
+    });
+  }
+  function alarmPattern() {
+    if (!alarmGain) return;
+    const t = actx.currentTime + 0.05;
+    [659.25, 880, 1108.73].forEach((f, i) => chime(alarmGain, t + i * 0.4, f));
+  }
+  function alarmStart(seconds) {
+    alarmStop();
+    audioSession("playback");
+    audioInit();
+    if (!actx) return;
+    const g = actx.createGain();
+    g.gain.value = Math.max(0.05, Math.min(1, pomo.vol / 100));
+    g.connect(actx.destination);
+    alarmGain = g;
+    const end = Date.now() + (seconds || pomo.alarm) * 1000;
+    const begin = () => {
+      if (alarmGain !== g) return;            // bu arada susturuldu ya da yenisi başladı
+      alarmPattern();
+      alarmTimer = setInterval(() => {
+        if (Date.now() >= end) alarmStop(); else alarmPattern();
+      }, 2800);
+    };
+    if (actx.state === "running") begin(); else actx.resume().then(begin).catch(() => {});
+  }
+
+  function askNotify() {
+    try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); } catch (_) {}
+  }
+  function notifyPhase(wasWork) {
+    try {
+      if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+        new Notification(wasWork ? "Çalışma bitti" : "Mola bitti", {
+          body: wasWork ? "Mola başladı. Ekrandan biraz uzaklaş." : "Hazır olunca devam et.",
+          silent: true
+        });
+      }
+    } catch (_) {}
+  }
+
+  function paintPomo() {
+    const t = fmt(remain);
+    const inBreak = mode !== "work";
+    pomoTime.textContent = t;
+    pomoBtn.classList.toggle("active", running && !inBreak);
+    const round = mode === "work" ? done + 1 : (mode === "long" ? pomo.rounds : done);
+    pomoRound.textContent = round + "/" + pomo.rounds;
+    restEl.hidden = !inBreak;
+    if (!inBreak && pendingReflect) hideReflect();
+    $("restTime").textContent = t;
+    $("restLbl").textContent = mode === "long" ? "UZUN MOLA" : "MOLA";
+    document.title = running ? t + " · Odak" : "Odak";
+  }
+
+  function run() {
+    running = true;
+    endAt = Date.now() + remain;
+    clearInterval(tick);
+    tick = setInterval(pomoTick, 250);
+  }
+  function halt() {
+    if (running) remain = Math.max(0, endAt - Date.now());
+    running = false;
+    clearInterval(tick);
+  }
+
+  function pomoTick() {
+    remain = endAt - Date.now();
+    if (remain <= 0) phaseEnd(); else paintPomo();
+  }
+
+  function phaseEnd() {
+    halt();
+    const wasWork = mode === "work";
+    alarmStart();
+    if (mode === "work") {
+      done++;
+      const k = dayKey();
+      bump("pomos", k, 1);
+      const entry = { ts: Date.now(), pid: pid(), intent: currentIntent, learned: "", min: pomo.work };
+      state.log.push(entry);
+      if (state.log.length > 200) state.log.splice(0, state.log.length - 200);
+      currentIntent = "";
+      if (pomo.reflect) showReflect(entry);
+      if (ready) { saveProgress(); yt.pauseVideo(); }   // mola başlayınca video durur
+      saveState();
+      refreshPanels();
+      mode = done >= pomo.rounds ? "long" : "short";
+      if (mode === "long") done = 0;
+      remain = dur(mode);
+      run();                                             // mola kendiliğinden başlar
+    } else {
+      mode = "work";                                     // yeni çalışma, sen başlatınca başlar
+      remain = dur("work");
+    }
+    notifyPhase(wasWork);
+    paintPomo();
+  }
+
+  function pomoStart() {
+    run();
+    if (mode === "work" && ready) { try { yt.playVideo(); } catch (_) {} }
+    paintPomo();
+  }
+
+  function pomoToggle() {
+    audioInit();
+    alarmStop();
+    askNotify();
+    if (running) {
+      halt();
+      if (mode === "work" && ready) yt.pauseVideo();
+      paintPomo();
+    } else {
+      askIntent(pomoStart);              // yeni tur başlıyorsa önce niyeti sorar
+    }
+  }
+
+  function pomoSkipBreak() {
+    alarmStop();
+    hideReflect();
+    if (mode === "work") return;
+    halt();
+    mode = "work";
+    remain = dur("work");
+    paintPomo();
+  }
+
+  function pomoReset() {
+    halt();
+    hideReflect();
+    mode = "work";
+    done = 0;
+    remain = dur("work");
+    paintPomo();
+  }
+
+  const TOGGLES = { intent: 1, reflect: 1 };
+  const setText = (key) => TOGGLES[key] ? (pomo[key] ? "açık" : "kapalı") : (/^goal/.test(key) && !pomo[key] ? "kapalı" : String(pomo[key]));
+
+  let phoneInfo = null;     // sunucudan: telefonda açılacak adresler
+  function loadInfo() {
+    if (!sync.on || !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return;
+    fetch("/bilgi", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).then((j) => {
+      if (!j || !Array.isArray(j.urls)) return;
+      const changed = JSON.stringify(j) !== JSON.stringify(phoneInfo);
+      phoneInfo = j;
+      if (changed && !pop.hidden && !cloudUI.open) renderPop();
+    }).catch(() => {});
+  }
+  function renderCloud() {
+    const c = cloudCfg();
+    const row = document.createElement("div");
+    row.className = "row";
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = "Bulut";
+    const val = document.createElement("span");
+    val.className = "val";
+    val.id = "cloudVal";
+    val.style.minWidth = "0";
+    val.textContent = cloudText();
+    const btn = document.createElement("button");
+    btn.type = "button";
+    row.append(name, val, btn);
+    pop.appendChild(row);
+    const say = (text) => { const d = document.createElement("div"); d.className = "sy"; d.textContent = text; pop.appendChild(d); return d; };
+
+    if (c) {
+      btn.textContent = "Şimdi";
+      btn.addEventListener("click", () => { val.textContent = "…"; syncNow(true); });
+      const link = cloudLink();
+      if (link) {
+        say("Başka cihazı bağla: kamerayla okut. Telefonda ana ekrana eklemeden önce bu bağlantıyla aç.");
+        const qr = QR.svg(link, 176);
+        if (qr) {
+          const box = document.createElement("div");
+          box.className = "qr";
+          box.appendChild(qr);
+          pop.appendChild(box);
+        } else {
+          say(link);
+        }
+      } else {
+        say("Başka cihaz için yayın adresi gerekli: bağlantıyı kesip adresle yeniden bağlan.");
+      }
+      const off = document.createElement("button");
+      off.type = "button";
+      off.textContent = cloudUI.confirmOff ? "Emin misin? Tekrar dokun" : "Bağlantıyı kes";
+      off.addEventListener("click", () => {
+        if (!cloudUI.confirmOff) { cloudUI.confirmOff = true; renderPop(); return; }
+        cloudUI.confirmOff = false;
+        try { localStorage.removeItem("odak.cloud"); } catch (_) {}
+        try { history.replaceState(null, "", location.pathname + location.search); } catch (_) {}
+        sync.cok = null; sync.clast = 0; sync.cfirst = false;
+        paintSync();
+        renderPop();
+      });
+      pop.appendChild(off);
+      return;
+    }
+
+    btn.textContent = cloudUI.open ? "Kapat" : "Kur";
+    btn.addEventListener("click", () => { cloudUI.open = !cloudUI.open; renderPop(); });
+    if (!cloudUI.open) return;
+
+    const hosted = location.protocol === "https:" && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+    const s1 = document.createElement("div");
+    s1.className = "sy";
+    s1.append("Bilgisayar kapalıyken de (okulda) çalışsın diye kaydın kendi GitHub hesabındaki gizli bir dosyada da durur. 1) Bu bağlantıdan jeton oluştur (gist izni hazır gelir): ");
+    const a = document.createElement("a");
+    a.href = "https://github.com/settings/tokens/new?scopes=gist&description=Odak";
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = "jeton oluştur";
+    s1.appendChild(a);
+    s1.append(". Sonra jetonu buraya yapıştır (başka cihazdan aldığın kurulum bağlantısı da olur):");
+    pop.appendChild(s1);
+
+    const mk = (ph, key) => {
+      const i = document.createElement("input");
+      i.type = "text";
+      i.className = "cin";
+      i.placeholder = ph;
+      i.value = cloudUI[key];
+      i.autocomplete = "off";
+      i.setAttribute("autocapitalize", "off");
+      i.setAttribute("autocorrect", "off");
+      i.spellcheck = false;
+      i.addEventListener("input", () => { cloudUI[key] = i.value; });
+      pop.appendChild(i);
+      return i;
+    };
+    const tok = mk("ghp_…  ya da  kurulum bağlantısı", "token");
+    let urlIn = null;
+    if (!hosted) {
+      say("2) Sayfanın GitHub Pages adresi (telefona QR verebilmek için):");
+      urlIn = mk("https://kullanici.github.io/odak/odak.html", "url");
+    }
+    const msg = document.createElement("div");
+    msg.className = "cmsg";
+    msg.textContent = cloudUI.msg;
+    const go = document.createElement("button");
+    go.type = "button";
+    go.textContent = "Bağlan";
+    go.addEventListener("click", async () => {
+      const setMsg = (t) => { cloudUI.msg = t; msg.textContent = t; };
+      try {
+        setMsg("Bağlanıyor…");
+        const raw = tok.value.trim();
+        const pageUrl = hosted ? location.origin + location.pathname : (urlIn ? urlIn.value.trim() : "");
+        if (pageUrl && !/^https:\/\//.test(pageUrl)) throw new Error("Adres https:// ile başlamalı.");
+        if (!raw) throw new Error("Jetonu ya da kurulum bağlantısını yapıştır.");
+        if (/bulut=/.test(raw) || /^eyJ/.test(raw)) {
+          const o = cloudParse(raw);
+          if (!o) throw new Error("Kurulum bağlantısı okunamadı.");
+          const base = /^https?:\/\//.test(raw) ? raw.split("#")[0] : "";
+          write("odak.cloud", { t: o.t, g: o.g, u: base || pageUrl });
+        } else {
+          await cloudConnect(raw, pageUrl);
+        }
+        cloudUI.open = false; cloudUI.token = ""; cloudUI.url = ""; cloudUI.msg = "";
+        sync.cfirst = false;
+        renderPop();
+        paintSync();
+        syncNow(true);
+      } catch (e) {
+        setMsg((e && e.message) || "Bağlanamadı.");
+      }
+    });
+    pop.appendChild(go);
+    pop.appendChild(msg);
+  }
+
+  function renderPop() {
+    pop.textContent = "";
+    loadInfo();
+    renderCloud();
+    if (sync.on) {
+      const row = document.createElement("div");
+      row.className = "row";
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = "Sunucu";
+      const val = document.createElement("span");
+      val.className = "val";
+      val.id = "syncVal";
+      val.style.minWidth = "0";
+      val.textContent = syncText();
+      const now = document.createElement("button");
+      now.type = "button";
+      now.textContent = "Şimdi";
+      now.addEventListener("click", () => { val.textContent = "…"; syncNow(true); });
+      row.append(name, val, now);
+      pop.appendChild(row);
+      if (phoneInfo) {
+        const best = phoneInfo.tunnel || (phoneInfo.lan && phoneInfo.urls.length ? phoneInfo.urls[0] : "");
+        const sy = document.createElement("div");
+        sy.className = "sy";
+        if (phoneInfo.tunnel) sy.textContent = "Telefonda aç (internet üzerinden, her yerde çalışır). Kamerayla okut:";
+        else if (best) sy.textContent = "Telefonda (aynı Wi‑Fi) aç. Kamerayla okut:";
+        else sy.textContent = "Telefon için bilgisayarda telefon.bat dosyasını çalıştır (ek ayar gerekmez).";
+        pop.appendChild(sy);
+        if (best) {
+          const qr = QR.svg(best, 176);
+          if (qr) {
+            const box = document.createElement("div");
+            box.className = "qr";
+            box.appendChild(qr);
+            pop.appendChild(box);
+          }
+          const u = document.createElement("div");
+          u.className = "sy";
+          const bb = document.createElement("b");
+          bb.textContent = qr ? best.replace(/\?k=.*/, "?k=…") : best;
+          u.appendChild(bb);
+          pop.appendChild(u);
+        }
+      }
+    }
+    const topRow = document.createElement("div");
+    topRow.className = "foot";
+    topRow.style.justifyContent = "flex-start";
+    const ses = document.createElement("button");
+    ses.type = "button";
+    ses.textContent = "Oturumu başlat (B)";
+    ses.addEventListener("click", () => { closePop(); sessionStart(); });
+    topRow.appendChild(ses);
+    pop.appendChild(topRow);
+    SETS.forEach(([key, label, min, max, step]) => {
+      const row = document.createElement("div");
+      row.className = "row";
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = label;
+      const val = document.createElement("span");
+      val.className = "val";
+      val.textContent = setText(key);
+      const mk = (txt, d) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = txt;
+        b.addEventListener("click", () => {
+          const wasFull = !running && remain === dur(mode);
+          pomo[key] = Math.min(max, Math.max(min, pomo[key] + d * step));
+          val.textContent = setText(key);
+          state.prefsAt = Date.now();
+          saveState();
+          if (wasFull) remain = dur(mode);
+          paintPomo();
+        });
+        return b;
+      };
+      row.append(name, mk("−", -1), val, mk("+", 1));
+      pop.appendChild(row);
+    });
+    const foot = document.createElement("div");
+    foot.className = "foot";
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.textContent = "Sıfırla";
+    reset.addEventListener("click", () => { pomoReset(); closePop(); });
+    const test = document.createElement("button");
+    test.type = "button";
+    test.textContent = "Sesi dene";
+    test.addEventListener("click", () => alarmStart(5));
+    foot.append(test, reset);
+    pop.appendChild(foot);
+  }
+
+  function closePop() { pop.hidden = true; updatePeek(); }
+  $("pomoSet").addEventListener("click", () => {
+    if (pop.hidden) { closePanels(); renderPop(); pop.hidden = false; updatePeek(); }
+    else closePop();
+  });
+  // Tıklanan öğe, işleyici içinde yeniden çizilip DOM'dan çıkabilir; bu yüzden olay yolu kullanılır
+  document.addEventListener("pointerdown", (e) => {
+    const path = e.composedPath ? e.composedPath() : [];
+    const inside = (n) => path.includes(n);
+    if (!pop.hidden && !inside(pop) && e.target.id !== "pomoSet") closePop();
+    if (!menuEl.hidden && !inside(menuEl) && !inside(courseBtn)) closeMenu();
+    if (!statsEl.hidden && !inside(statsEl) && !inside(statsBtn)) closeStats();
+    if (!notesEl.hidden && !inside(notesEl) && !inside(notesBtn)) closeNotes();
+  });
+  pomoBtn.addEventListener("click", pomoToggle);
+  addEventListener("pointerdown", () => { audioInit(); alarmStop(); }, true);
+  addEventListener("touchend", () => audioInit(), true);   // iOS ses kilidini touchend/click ile açar
+  addEventListener("click", () => audioInit(), true);
+  addEventListener("keydown", () => alarmStop(), true);
+  $("restSkip").addEventListener("click", pomoSkipBreak);
+
+  // ── Başlangıç ──
+  if (location.protocol === "file:") {
+    note("Bu sayfa file:// ile açıldı; YouTube bunu reddeder (Hata 153). baslat.bat dosyasına çift tıkla ya da http://localhost:8000/odak.html adresini aç. Telefonda: baslat.bat penceresinde yazan adresi aç.");
+  }
+  paintCourses();
+  paintSpeed();
+  paintList();
+  paintPomo();
+  paintStatsBtn();
+  if (cloudImportHash()) note("Bulut bağlandı. Kayıtların bu cihaza geliyor…");
+  paintSync();
+  setInterval(paintStatsBtn, 600000);
+  if (cloudOn()) scheduleSync(400);
+  if (sync.on) scheduleSync(1200);      // eski sürümden gelen kaydı yeni şekle yükseltmek için
+  loadInfo();
+  ids = lists[pid()] || [];
+  idx = startIndex(cur);
+  renderList();
+
+  const api = document.createElement("script");
+  api.src = "https://www.youtube.com/iframe_api";
+  api.onerror = () => note("YouTube oynatıcısı yüklenemedi. İnternet bağlantını kontrol edip sayfayı yenile.");
+  document.head.appendChild(api);
+  setTimeout(() => { if (!ready && location.protocol !== "file:") note("Oynatıcı hâlâ hazır değil. İnternet bağlantını kontrol edip sayfayı yenile."); }, 12000);
+</script>
+</body>
+</html>
