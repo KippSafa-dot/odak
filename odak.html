@@ -5,7 +5,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="dark light">
+<script>try{if(localStorage.getItem("odak.theme")==="paper"){document.documentElement.setAttribute("data-theme","paper");document.querySelector('meta[name="theme-color"]').setAttribute("content","#f4ecd8");}}catch(e){}</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Odak">
@@ -14,13 +15,30 @@
 <link rel="apple-touch-icon" href="/ikon.png">
 <title>Odak</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; background: #000000; }
+  /* ── Renk temaları: koyu (varsayılan) ve kağıt (sepya, parlak ortam için) ── */
+  :root {
+    color-scheme: dark;
+    --bg: #000000; --surf: #161616; --surf2: #1c1c1c; --line: #1e1e1e; --line2: #222222;
+    --c0: #2a2a2a; --c1: #2b2b2b; --c2: #2f2f2f; --c3: #333333; --c4: #3a3a3a; --c5: #4a4a4a;
+    --c6: #6a6a6a; --c7: #7a7a7a; --c8: #8a8a8a; --c9: #9a9a9a; --c10: #aaaaaa;
+    --blue: #7fb0ff; --blue2: #3f6aa8; --green: #4d8a63; --amber: #a8883f; --note: #6a5a3a; --ok: #2f6b48;
+  }
+  :root[data-theme="paper"] {
+    color-scheme: light;
+    --bg: #f4ecd8; --surf: #e9dec3; --surf2: #e4d8bb; --line: #d9cba7; --line2: #d2c39e;
+    --c0: #b3a68a; --c1: #a09373; --c2: #9d9072; --c3: #8d8064; --c4: #7e7157; --c5: #65583f;
+    --c6: #54472e; --c7: #46391f; --c8: #3a2f1a; --c9: #2f2614; --c10: #2a2210;
+    --blue: #1f4d8f; --blue2: #2f5f9e; --green: #3f7a4f; --amber: #8a5f12; --note: #6e5a2a; --ok: #3f7a4f;
+  }
+  .player, .player iframe { background: #000000; }   /* video alanı iki temada da koyu kalır */
+
+  * { margin: 0; padding: 0; box-sizing: border-box; background: var(--bg); }
 
   html, body {
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
-    color: #4a4a4a;
+    color: var(--c5);
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
@@ -72,20 +90,20 @@
   .listwrap[hidden] { display: none; }
   .lf { display: flex; align-items: center; gap: 12px; padding: 0 6px 8px 8px; }
   .lf input {
-    flex: 1; min-width: 0; border: 0; border-bottom: 1px solid #161616; outline: none;
-    color: #8a8a8a; font: inherit; font-size: 13px; padding: 4px 0;
+    flex: 1; min-width: 0; border: 0; border-bottom: 1px solid var(--surf); outline: none;
+    color: var(--c8); font: inherit; font-size: 13px; padding: 4px 0;
   }
-  .lf input:focus { border-bottom-color: #3f6aa8; }
-  .lf input::placeholder { color: #2f2f2f; }
-  .lf button { border: none; outline: none; cursor: pointer; font: inherit; font-size: 12px; color: #3a3a3a; padding: 4px 2px; }
-  .lf button:hover { color: #7a7a7a; }
-  .lf button.on { color: #7fb0ff; }
+  .lf input:focus { border-bottom-color: var(--blue2); }
+  .lf input::placeholder { color: var(--c2); }
+  .lf button { border: none; outline: none; cursor: pointer; font: inherit; font-size: 12px; color: var(--c4); padding: 4px 2px; }
+  .lf button:hover { color: var(--c7); }
+  .lf button.on { color: var(--blue); }
   .list {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: #1e1e1e #000000;
+    scrollbar-color: var(--line) var(--bg);
     transition: opacity 0.2s ease;
   }
   .list[hidden] { display: none; }
@@ -97,39 +115,39 @@
     cursor: pointer;
     font-size: 13.5px;
     line-height: 1.35;
-    color: #4a4a4a;
+    color: var(--c5);
     padding: 7px 4px 7px 8px;
     transition: color 0.15s ease;
   }
-  .item:hover { color: #8a8a8a; }
-  .item.current { color: #7fb0ff; }
+  .item:hover { color: var(--c8); }
+  .item.current { color: var(--blue); }
   .item[hidden] { display: none; }
   .item .n { min-width: 2.6em; opacity: 0.6; }
-  .item .nt { font-size: 11px; color: #3a3a3a; margin: 0 4px 0 6px; white-space: nowrap; }
+  .item .nt { font-size: 11px; color: var(--c4); margin: 0 4px 0 6px; white-space: nowrap; }
   .item .a {
-    width: 1.8em; text-align: center; flex-shrink: 0; opacity: 0; color: #4a4a4a;
+    width: 1.8em; text-align: center; flex-shrink: 0; opacity: 0; color: var(--c5);
     transition: opacity 0.15s ease, color 0.15s ease;
   }
   .item:hover .a { opacity: 0.45; }
-  .item .a:hover { color: #a8883f; opacity: 1; }
-  .item.applied .a { opacity: 1; color: #a8883f; }
+  .item .a:hover { color: var(--amber); opacity: 1; }
+  .item.applied .a { opacity: 1; color: var(--amber); }
   .item .t { flex: 1; }
   .item .c {
     width: 2em;
     text-align: center;
     flex-shrink: 0;
     opacity: 0;
-    color: #4a4a4a;
+    color: var(--c5);
     transition: opacity 0.15s ease, color 0.15s ease;
   }
   .item:hover .c { opacity: 0.55; }
-  .item .c:hover { color: #8a8a8a; opacity: 1; }
-  .item.done:not(.current) { color: #2b2b2b; }
-  .item.done .c { opacity: 1; color: #4d8a63; }
+  .item .c:hover { color: var(--c8); opacity: 1; }
+  .item.done:not(.current) { color: var(--c1); }
+  .item.done .c { opacity: 1; color: var(--green); }
   .item.resume:not(.current) .t::after {
     content: "  · kaldığın yer";
     font-size: 11px;
-    color: #3f6aa8;
+    color: var(--blue2);
   }
 
   /* ── Alt çubuk ── */
@@ -155,19 +173,19 @@
     font-size: 14px;
     letter-spacing: 0.02em;
     padding: 6px 2px;
-    color: #4a4a4a;
+    color: var(--c5);
     transition: color 0.2s ease;
   }
-  .bar button:hover { color: #7a7a7a; }
-  .bar button.active { color: #7fb0ff; }
+  .bar button:hover { color: var(--c7); }
+  .bar button.active { color: var(--blue); }
   .bar button:focus-visible { text-decoration: underline; text-underline-offset: 6px; }
-  #counter { font-size: 13px; color: #3a3a3a; min-width: 4.5em; text-align: center; }
+  #counter { font-size: 13px; color: var(--c4); min-width: 4.5em; text-align: center; }
 
   #courseBtn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #courseBtn .grp { color: #333333; }
+  #courseBtn .grp { color: var(--c3); }
 
-  #pomo.active #pomoTime { color: #7fb0ff; }
-  #pomoRound { font-size: 12px; color: #3a3a3a; margin-left: 4px; }
+  #pomo.active #pomoTime { color: var(--blue); }
+  #pomoRound { font-size: 12px; color: var(--c4); margin-left: 4px; }
 
   /* ── Açılır paneller: kurs menüsü ve ilerleme ── */
   .menu {
@@ -184,7 +202,7 @@
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 20px 40px;
     scrollbar-width: thin;
-    scrollbar-color: #1e1e1e #000000;
+    scrollbar-color: var(--line) var(--bg);
   }
   .menu[hidden] { display: none; }
   .menu .span { grid-column: 1 / -1; }
@@ -195,7 +213,7 @@
     font-size: 12px;
     font-weight: 400;
     letter-spacing: 0.06em;
-    color: #2f2f2f;
+    color: var(--c2);
     padding: 0 2px 4px;
   }
   .menu button {
@@ -206,19 +224,19 @@
     gap: 14px;
     text-align: left;
   }
-  .menu .meta { font-size: 12px; color: #333333; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .menu button.active .meta { color: #3f6aa8; }
+  .menu .meta { font-size: 12px; color: var(--c3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .menu button.active .meta { color: var(--blue2); }
 
   /* İlerleme paneli */
   .sum { display: flex; flex-wrap: wrap; gap: 12px 56px; }
-  .sum .k { font-size: 12px; color: #333333; padding-bottom: 2px; }
-  .sum .v { font-size: 20px; font-weight: 300; color: #6a6a6a; font-variant-numeric: tabular-nums; }
+  .sum .k { font-size: 12px; color: var(--c3); padding-bottom: 2px; }
+  .sum .v { font-size: 20px; font-weight: 300; color: var(--c6); font-variant-numeric: tabular-nums; }
   .week { display: flex; align-items: flex-end; gap: 12px; height: 76px; }
   .week .col { flex: 0 0 30px; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 5px; }
-  .week .b { width: 6px; min-height: 2px; background: #1c1c1c; border-radius: 2px; }
-  .week .b.on { background: #3f6aa8; }
-  .week .d { font-size: 11px; color: #2f2f2f; }
-  .week .col.today .d { color: #6a6a6a; }
+  .week .b { width: 6px; min-height: 2px; background: var(--surf2); border-radius: 2px; }
+  .week .b.on { background: var(--blue2); }
+  .week .d { font-size: 11px; color: var(--c2); }
+  .week .col.today .d { color: var(--c6); }
   .cr {
     display: grid;
     grid-template-columns: 1fr 64px 56px 40px;
@@ -226,54 +244,54 @@
     gap: 12px;
     padding: 5px 2px;
     font-size: 14px;
-    color: #4a4a4a;
+    color: var(--c5);
   }
-  .cr .ap { font-size: 12px; color: #a8883f; text-align: right; }
-  .gr { display: grid; grid-template-columns: 1fr 64px 96px; gap: 12px; align-items: center; padding: 5px 2px; font-size: 14px; color: #4a4a4a; }
-  .gr .ct { font-size: 12px; color: #333333; text-align: right; font-variant-numeric: tabular-nums; }
-  .rv { display: flex; gap: 12px; align-items: baseline; padding: 5px 2px; font-size: 14px; color: #4a4a4a; }
+  .cr .ap { font-size: 12px; color: var(--amber); text-align: right; }
+  .gr { display: grid; grid-template-columns: 1fr 64px 96px; gap: 12px; align-items: center; padding: 5px 2px; font-size: 14px; color: var(--c5); }
+  .gr .ct { font-size: 12px; color: var(--c3); text-align: right; font-variant-numeric: tabular-nums; }
+  .rv { display: flex; gap: 12px; align-items: baseline; padding: 5px 2px; font-size: 14px; color: var(--c5); }
   .rv .rvt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rv.go { cursor: pointer; }
-  .rv.go .rvt:hover { color: #8a8a8a; }
-  .rv .rvs { font-size: 12px; color: #333333; white-space: nowrap; }
-  .rv .rvk { color: #4d8a63; cursor: pointer; opacity: 0.6; }
+  .rv.go .rvt:hover { color: var(--c8); }
+  .rv .rvs { font-size: 12px; color: var(--c3); white-space: nowrap; }
+  .rv .rvk { color: var(--green); cursor: pointer; opacity: 0.6; }
   .rv .rvk:hover { opacity: 1; }
   #notes { left: 50%; right: auto; width: min(760px, 96vw); transform: translateX(-50%); grid-template-columns: 1fr; }
-  .ni { width: 100%; border: 0; border-bottom: 1px solid #1e1e1e; outline: none; color: #9a9a9a; font: inherit; font-size: 16px; padding: 8px 2px; }
-  .ni:focus { border-bottom-color: #3f6aa8; }
-  .ni::placeholder { color: #2f2f2f; }
-  .nr { display: grid; grid-template-columns: 58px 1fr 20px; gap: 12px; align-items: baseline; padding: 5px 2px; font-size: 14px; color: #6a6a6a; }
-  .nr .ck { color: #3f6aa8; cursor: pointer; font-variant-numeric: tabular-nums; }
-  .nr .x { color: #333333; cursor: pointer; text-align: center; }
-  .nr .x:hover { color: #8a8a8a; }
-  .act { font-size: 13px; color: #3a3a3a; cursor: pointer; padding-top: 6px; }
-  .act:hover { color: #7a7a7a; }
+  .ni { width: 100%; border: 0; border-bottom: 1px solid var(--line); outline: none; color: var(--c9); font: inherit; font-size: 16px; padding: 8px 2px; }
+  .ni:focus { border-bottom-color: var(--blue2); }
+  .ni::placeholder { color: var(--c2); }
+  .nr { display: grid; grid-template-columns: 58px 1fr 20px; gap: 12px; align-items: baseline; padding: 5px 2px; font-size: 14px; color: var(--c6); }
+  .nr .ck { color: var(--blue2); cursor: pointer; font-variant-numeric: tabular-nums; }
+  .nr .x { color: var(--c3); cursor: pointer; text-align: center; }
+  .nr .x:hover { color: var(--c8); }
+  .act { font-size: 13px; color: var(--c4); cursor: pointer; padding-top: 6px; }
+  .act:hover { color: var(--c7); }
   .rest input {
-    width: min(480px, 80%); border: 0; border-bottom: 1px solid #1e1e1e; outline: none; color: #8a8a8a;
+    width: min(480px, 80%); border: 0; border-bottom: 1px solid var(--line); outline: none; color: var(--c8);
     font: inherit; font-size: 15px; padding: 6px 2px; text-align: center;
   }
   .rest input[hidden] { display: none; }
-  .rest input:focus { border-bottom-color: #3f6aa8; }
-  .rest input::placeholder { color: #2f2f2f; }
+  .rest input:focus { border-bottom-color: var(--blue2); }
+  .rest input::placeholder { color: var(--c2); }
   #ask {
     position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 18px;
   }
   #ask[hidden] { display: none; }
-  #ask label { font-size: 14px; letter-spacing: 0.12em; color: #3a3a3a; }
+  #ask label { font-size: 14px; letter-spacing: 0.12em; color: var(--c4); }
   #ask input {
-    width: min(560px, 86vw); border: 0; border-bottom: 1px solid #1e1e1e; outline: none; color: #9a9a9a;
+    width: min(560px, 86vw); border: 0; border-bottom: 1px solid var(--line); outline: none; color: var(--c9);
     font: inherit; font-size: 20px; padding: 8px 2px; text-align: center;
   }
-  #ask input:focus { border-bottom-color: #3f6aa8; }
-  #ask input::placeholder { color: #2a2a2a; }
-  #ask .hint { font-size: 12px; color: #2f2f2f; }
-  #ask button { border: none; outline: none; cursor: pointer; font: inherit; font-size: 13px; color: #3a3a3a; padding: 4px 6px; }
-  #ask button:hover { color: #7a7a7a; }
-  .pop { max-height: 62vh; max-height: 62dvh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #1e1e1e #000000; }
-  .mini { height: 2px; background: #161616; border-radius: 2px; overflow: hidden; }
-  .mini i { display: block; height: 100%; background: #3f6aa8; }
-  .cr .ct { font-size: 12px; color: #333333; text-align: right; font-variant-numeric: tabular-nums; }
+  #ask input:focus { border-bottom-color: var(--blue2); }
+  #ask input::placeholder { color: var(--c0); }
+  #ask .hint { font-size: 12px; color: var(--c2); }
+  #ask button { border: none; outline: none; cursor: pointer; font: inherit; font-size: 13px; color: var(--c4); padding: 4px 6px; }
+  #ask button:hover { color: var(--c7); }
+  .pop { max-height: 62vh; max-height: 62dvh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) var(--bg); }
+  .mini { height: 2px; background: var(--surf); border-radius: 2px; overflow: hidden; }
+  .mini i { display: block; height: 100%; background: var(--blue2); }
+  .cr .ct { font-size: 12px; color: var(--c3); text-align: right; font-variant-numeric: tabular-nums; }
 
   /* Mola ekranı: video örtülür, sadece kalan süre görünür */
   .rest {
@@ -287,13 +305,13 @@
     gap: 14px;
   }
   .rest[hidden] { display: none; }
-  .rest .lbl { font-size: 14px; letter-spacing: 0.2em; color: #333333; }
-  .rest .time { font-size: clamp(40px, 9cqw, 110px); font-weight: 200; color: #4a4a4a; font-variant-numeric: tabular-nums; }
+  .rest .lbl { font-size: 14px; letter-spacing: 0.2em; color: var(--c3); }
+  .rest .time { font-size: clamp(40px, 9cqw, 110px); font-weight: 200; color: var(--c5); font-variant-numeric: tabular-nums; }
   .rest button {
     border: none; outline: none; cursor: pointer; font: inherit; font-size: 14px;
-    color: #3a3a3a; padding: 6px 4px; transition: color 0.2s ease;
+    color: var(--c4); padding: 6px 4px; transition: color 0.2s ease;
   }
-  .rest button:hover { color: #7a7a7a; }
+  .rest button:hover { color: var(--c7); }
 
   /* Pomodoro ayarları */
   .pop {
@@ -306,11 +324,11 @@
   }
   .pop[hidden] { display: none; }
   .pop .row { display: flex; align-items: center; gap: 10px; padding: 2px 0; }
-  .pop .row .name { flex: 1; font-size: 14px; color: #4a4a4a; }
-  .pop .row .val { min-width: 3.2em; text-align: center; font-size: 14px; color: #7fb0ff; font-variant-numeric: tabular-nums; }
+  .pop .row .name { flex: 1; font-size: 14px; color: var(--c5); }
+  .pop .row .val { min-width: 3.2em; text-align: center; font-size: 14px; color: var(--blue); font-variant-numeric: tabular-nums; }
   .pop .foot { display: flex; justify-content: flex-end; gap: 16px; padding-top: 6px; }
 
-  #note { color: #6a5a3a; font-size: 13px; padding: 0 16px 6px; text-align: center; }
+  #note { color: var(--note); font-size: 13px; padding: 0 16px 6px; text-align: center; }
   #note[hidden] { display: none; }
 
   /* ── Sade mod: sadece video; çubuk fareyle alta gelince görünür ── */
@@ -329,14 +347,14 @@
   }
 
   /* ── Eşitleme göstergesi, not eylemi, sade modda dokunmatik erişim ── */
-  #note .nact { border: none; outline: none; cursor: pointer; font: inherit; color: #7fb0ff; padding: 8px 10px; }
+  #note .nact { border: none; outline: none; cursor: pointer; font: inherit; color: var(--blue); padding: 8px 10px; }
   #syncDot { display: none; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; vertical-align: middle; }
   #hot { display: none; position: fixed; left: 0; right: 0; bottom: 0; height: calc(56px + env(safe-area-inset-bottom, 0px)); z-index: 6; }
-  .pop .sy { font-size: 12px; color: #4a4a4a; padding: 2px 0 8px; line-height: 1.6; max-width: 320px; }
-  .pop .sy b { font-weight: 400; color: #7a7a7a; user-select: text; -webkit-user-select: text; word-break: break-all; }
-  .pop .sy a { color: #7fb0ff; }
-  .pop .cin { width: 100%; max-width: 320px; margin: 4px 0; padding: 8px 2px; border: none; border-bottom: 1px solid #222; color: #aaa; font: inherit; font-size: 16px; outline: none; }
-  .pop .cmsg { font-size: 12px; color: #a8883f; min-height: 1em; padding: 2px 0 6px; max-width: 320px; line-height: 1.5; }
+  .pop .sy { font-size: 12px; color: var(--c5); padding: 2px 0 8px; line-height: 1.6; max-width: 320px; }
+  .pop .sy b { font-weight: 400; color: var(--c7); user-select: text; -webkit-user-select: text; word-break: break-all; }
+  .pop .sy a { color: var(--blue); }
+  .pop .cin { width: 100%; max-width: 320px; margin: 4px 0; padding: 8px 2px; border: none; border-bottom: 1px solid var(--line2); color: var(--c10); font: inherit; font-size: 16px; outline: none; }
+  .pop .cmsg { font-size: 12px; color: var(--amber); min-height: 1em; padding: 2px 0 6px; max-width: 320px; line-height: 1.5; }
   .pop .qr { padding: 4px 0 8px; }
   .pop .qr svg { display: block; border-radius: 6px; }
 
@@ -1167,7 +1185,7 @@
     const d = $("syncDot");
     if (d) {
       d.style.display = any ? "inline-block" : "none";
-      d.style.background = bad ? "#a8883f" : good ? "#2f6b48" : "#333333";
+      d.style.background = bad ? "var(--amber)" : good ? "var(--ok)" : "var(--c3)";
     }
     const v = $("syncVal");
     if (v) v.textContent = syncText();
@@ -2379,6 +2397,205 @@
   const TOGGLES = { intent: 1, reflect: 1 };
   const setText = (key) => TOGGLES[key] ? (pomo[key] ? "açık" : "kapalı") : (/^goal/.test(key) && !pomo[key] ? "kapalı" : String(pomo[key]));
 
+
+  // ── Görünüm: koyu (varsayılan) ya da kağıt (sepya). Cihaza özeldir, eşitlenmez. ──
+  function themeNow() { return document.documentElement.getAttribute("data-theme") === "paper" ? "paper" : "dark"; }
+  function setTheme(t) {
+    if (t === "paper") document.documentElement.setAttribute("data-theme", "paper");
+    else document.documentElement.removeAttribute("data-theme");
+    try { localStorage.setItem("odak.theme", t); } catch (_) {}
+    const m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute("content", t === "paper" ? "#f4ecd8" : "#000000");
+  }
+
+  // ── Dışa aktarma: not dökümü, ilerleme raporu, yedek ──
+  const trDate = (ms) => new Date(ms).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+  const ytLink = (id, t) => "https://www.youtube.com/watch?v=" + id + (t ? "&t=" + Math.floor(t) + "s" : "");
+  const courseIndexOf = (key) => courses.findIndex((c) => cleanId(c.playlistId) === key);
+
+  function countNotes() {
+    let n = 0;
+    Object.keys(state.notes).forEach((k) => Object.keys(state.notes[k]).forEach((id) => { n += (state.notes[k][id] || []).length; }));
+    return n;
+  }
+  // Notlar: kurs › video başına, saniyeye bağlı YouTube bağlantısıyla (tıklayınca o ana gider)
+  function buildNotesMd() {
+    const body = [];
+    let total = 0;
+    courses.forEach((c, i) => {
+      const key = pidOf(i), byVideo = state.notes[key];
+      if (!byVideo) return;
+      const order = lists[key] || [];
+      const vids = Object.keys(byVideo).filter((id) => (byVideo[id] || []).length);
+      if (!vids.length) return;
+      vids.sort((x, y) => { const a = order.indexOf(x), b = order.indexOf(y); return (a < 0 ? 1e9 : a) - (b < 0 ? 1e9 : b); });
+      body.push("## " + c.name + " (" + c.group + ")", "");
+      vids.forEach((id) => {
+        const k = order.indexOf(id);
+        body.push("### " + (k >= 0 ? (k + 1) + ". " : "") + titleOf(key, id), "");
+        byVideo[id].slice().sort((a, b) => a.t - b.t).forEach((n) => {
+          body.push("- [" + fmtClock(n.t) + "](" + ytLink(id, n.t) + ") " + String(n.text).replace(/\s*\n\s*/g, " "));
+          total++;
+        });
+        body.push("");
+      });
+    });
+    const head = ["# Odak: Notlarım", "", trDate(Date.now()) + " tarihinde dışa aktarıldı. Toplam " + total + " not. Saniyelere tıklayınca video o anda açılır.", ""];
+    return head.concat(body).join("\n").replace(/\n+$/, "") + "\n";
+  }
+  // İlerleme raporu: özet, kurs kurs durum, son 14 gün, oturum günlüğü
+  function buildReportMd() {
+    const L = [];
+    const now = new Date();
+    const sumDays = (n) => { let s = 0; for (let k = 0; k < n; k++) s += state.time[dayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - k))] || 0; return s; };
+    const allSec = Object.keys(state.time).reduce((a, k) => a + (state.time[k] || 0), 0);
+    const pomoAll = Object.keys(state.pomos).reduce((a, k) => a + (state.pomos[k] || 0), 0);
+    let doneAll = 0, appliedAll = 0;
+    courses.forEach((c, i) => { const k = pidOf(i); doneAll += Object.keys(state.done[k] || {}).length; appliedAll += Object.keys(state.applied[k] || {}).length; });
+    L.push("# Odak: İlerleme raporu", "", trDate(now.getTime()) + " tarihinde dışa aktarıldı.", "");
+    L.push("## Özet", "");
+    L.push("- Toplam izleme: " + fmtDur(allSec));
+    L.push("- Son 7 gün: " + fmtDur(sumDays(7)) + " · son 30 gün: " + fmtDur(sumDays(30)));
+    L.push("- Seri: " + streak() + " gün (günde en az " + Math.round(STREAK_MIN / 60) + " dk)");
+    L.push("- Tamamlanan pomodoro: " + pomoAll);
+    L.push("- Biten video: " + doneAll + " · uyguladığım: " + appliedAll, "");
+
+    L.push("## Kurslar", "");
+    const idle = [];
+    let lastGroup = "";
+    courses.forEach((c, i) => {
+      const k = pidOf(i), d = Object.keys(state.done[k] || {}).length, ap = Object.keys(state.applied[k] || {}).length, w = state.watch[k] || 0;
+      if (!d && !ap && !w) { idle.push(c.name); return; }
+      if (c.group !== lastGroup) { L.push("### " + c.group, ""); lastGroup = c.group; }
+      const total = totalOf(i), p = state.progress[k];
+      let line = "- **" + c.name + "**: " + d + (total ? " / " + total + " video (%" + Math.round(100 * d / total) + ")" : " video");
+      if (ap) line += " · uyguladığım " + ap;
+      if (w) line += " · izleme " + fmtDur(w);
+      if (p && p.index != null) line += " · kaldığım yer " + (p.index + 1) + ". video " + fmtClock(p.time || 0);
+      L.push(line);
+    });
+    if (idle.length) L.push("", "Henüz başlanmayan: " + idle.join(", ") + ".");
+    L.push("");
+
+    L.push("## Son 14 gün", "");
+    let any14 = false;
+    for (let k = 0; k < 14; k++) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - k), key = dayKey(d);
+      const s = state.time[key] || 0, pm = state.pomos[key] || 0;
+      if (!s && !pm) continue;
+      any14 = true;
+      L.push("- " + trDate(d.getTime()) + ": " + fmtDur(s) + (pm ? " · " + pm + " pomodoro" : ""));
+    }
+    if (!any14) L.push("Kayıtlı çalışma yok.");
+    L.push("");
+
+    const logs = state.log.slice(-30).reverse();
+    if (logs.length) {
+      L.push("## Oturum günlüğü (son " + logs.length + ")", "");
+      logs.forEach((e) => {
+        const i = courseIndexOf(e.pid), name = i >= 0 ? courses[i].name : "Kurs";
+        let line = "- " + trDate(e.ts) + " · " + name + " · " + (e.min || 0) + " dk";
+        if (e.intent) line += "\n  - Hedef: " + e.intent;
+        if (e.learned) line += "\n  - Öğrendim: " + e.learned;
+        L.push(line);
+      });
+      L.push("");
+    }
+    return L.join("\n").replace(/\n+$/, "") + "\n";
+  }
+
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (_) {}
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return ok;
+    } catch (_) { return false; }
+  }
+  // Telefonda paylaşım sayfası (Dosyalar'a kaydet, AirDrop...), bilgisayarda doğrudan indirme
+  async function saveFile(name, text, type) {
+    try {
+      if (matchMedia("(pointer: coarse)").matches && navigator.canShare && typeof File === "function") {
+        const f = new File([text], name, { type: "text/plain" });
+        if (navigator.canShare({ files: [f] })) { await navigator.share({ files: [f] }); return; }
+      }
+    } catch (e) { if (e && e.name === "AbortError") return; }
+    const url = URL.createObjectURL(new Blob([text], { type: type + ";charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 1500);
+  }
+  async function doExport(kind, how) {
+    const stamp = dayKey();
+    let text, name, type = "text/markdown", label;
+    if (kind === "notes") {
+      if (!countNotes()) { flash("Henüz not yok."); return; }
+      text = buildNotesMd(); name = "odak-notlar-" + stamp + ".md"; label = "Notlar";
+    } else if (kind === "report") {
+      text = buildReportMd(); name = "odak-ilerleme-" + stamp + ".md"; label = "Rapor";
+    } else {
+      text = JSON.stringify(state); name = "odak-yedek-" + stamp + ".json"; type = "application/json"; label = "Yedek";
+    }
+    if (how === "copy") { flash((await copyText(text)) ? label + " kopyalandı." : "Kopyalanamadı; İndir'i dene."); return; }
+    await saveFile(name, text, type);
+    flash(label + " hazır: " + name);
+  }
+  // Yedeği yüklemek mevcut kaydın üzerine yazmaz, birleştirir (yeni olan kazanır, hiçbir şey silinmez)
+  function importBackup() {
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = ".json,application/json";
+    inp.addEventListener("change", async () => {
+      const f = inp.files && inp.files[0];
+      if (!f) return;
+      try {
+        const data = JSON.parse(await f.text());
+        if (!isObj(data) || !(data.progress || data.done || data.ctr || data.notes)) throw new Error("bu bir Odak yedeği değil");
+        adopt(mergeStates(state, data));
+        saveState();
+        syncNow(true);
+        flash("Yedek mevcut kayıtla birleştirildi.");
+      } catch (e) { flash("Yedek okunamadı: " + ((e && e.message) || "hata")); }
+    });
+    inp.click();
+  }
+
+  function popRow(label, buttons) {
+    const row = document.createElement("div");
+    row.className = "row";
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = label;
+    row.appendChild(name);
+    buttons.forEach((b) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = b[0];
+      if (b[2]) btn.classList.add("active");
+      btn.addEventListener("click", b[1]);
+      row.appendChild(btn);
+    });
+    pop.appendChild(row);
+    return row;
+  }
+  function renderTheme() {
+    const t = themeNow();
+    popRow("Görünüm", [
+      ["Koyu", () => { setTheme("dark"); renderPop(); }, t === "dark"],
+      ["Kağıt", () => { setTheme("paper"); renderPop(); }, t === "paper"]
+    ]);
+  }
+  function renderExport() {
+    const share = matchMedia("(pointer: coarse)").matches ? "Paylaş" : "İndir";
+    popRow("Notlar", [["Kopyala", () => doExport("notes", "copy")], [share, () => doExport("notes", "save")]]);
+    popRow("İlerleme raporu", [["Kopyala", () => doExport("report", "copy")], [share, () => doExport("report", "save")]]);
+    popRow("Yedek", [[share, () => doExport("backup", "save")], ["Yükle", importBackup]]);
+  }
+
   let phoneInfo = null;     // sunucudan: telefonda açılacak adresler
   function loadInfo() {
     if (!sync.on || !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return;
@@ -2516,6 +2733,7 @@
   function renderPop() {
     pop.textContent = "";
     loadInfo();
+    renderTheme();
     renderCloud();
     if (sync.on) {
       const row = document.createElement("div");
@@ -2559,6 +2777,7 @@
         }
       }
     }
+    renderExport();
     const topRow = document.createElement("div");
     topRow.className = "foot";
     topRow.style.justifyContent = "flex-start";
