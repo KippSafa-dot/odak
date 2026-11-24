@@ -408,6 +408,34 @@
     .stage { padding-top: 1vh; }
     .listwrap { position: static; width: min(300px, 40vw); z-index: auto; }
   }
+  /* ── Yumuşak köşeli paneller (kurs menüsü, ilerleme, not, ayar) ──
+     Tüm öğeler "background: var(--bg)" kullandığı için panelin içinde --bg'yi
+     panel rengine çekmek, çocukların da aynı zemini almasını sağlar. */
+  :root { --panel: var(--surf); --panel2: var(--surf2); }
+  .menu, .pop {
+    --bg: var(--panel);
+    --surf: var(--panel2);
+    --surf2: var(--line2);
+    border: 1px solid var(--line2);
+    border-radius: 22px;
+    padding: 18px 20px 14px;
+    margin-bottom: 8px;
+    overscroll-behavior: contain;
+  }
+
+  /* Açılış animasyonu: panel alttan hafifçe süzülüp yerine oturur.
+     "translate"/"scale" ayrı özellikler olduğu için #notes'un transform ile ortalanması bozulmaz. */
+  @keyframes panelIn {
+    from { opacity: 0; translate: 0 14px; scale: 0.97; }
+    to   { opacity: 1; translate: 0 0;    scale: 1; }
+  }
+  .menu:not([hidden]), .pop:not([hidden]) {
+    transform-origin: 50% 100%;
+    animation: panelIn 340ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .menu:not([hidden]), .pop:not([hidden]) { animation: none; }
+  }
 </style>
 </head>
 <body>
@@ -532,12 +560,32 @@
   const askEl = $("ask"), askIn = $("askIn"), askLbl = $("askLbl"), askSkip = $("askSkip"), reflectIn = $("reflect");
   const hotEl = $("hot");
 
+  // ── Misafir oturumu ──
+  // Telefondan gelen #misafir=… bağlantısı jetonu ve tüm kayıtları yalnızca bu sekmenin
+  // sessionStorage'ına yazar; sekme kapanınca okul/kütüphane bilgisayarında hiçbir şey kalmaz.
+  // Kod adresten hemen silinir (geçmişte ve adres çubuğunda görünmez).
+  const store = (() => {
+    try {
+      const m = /^#misafir=([A-Za-z0-9_-]+)/.exec(location.hash);
+      if (m) {
+        const o = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, "+").replace(/_/g, "/")))));
+        if (o && /^[A-Za-z0-9_]{20,}$/.test(o.t || "") && typeof o.g === "string" && /^[A-Za-z0-9]+$/.test(o.g)) {
+          sessionStorage.setItem("odak.misafir", "1");
+          sessionStorage.setItem("odak.cloud", JSON.stringify({ t: o.t, g: o.g, u: location.origin + location.pathname }));
+        }
+        history.replaceState(null, "", location.pathname + location.search);
+      }
+      return sessionStorage.getItem("odak.misafir") ? sessionStorage : localStorage;
+    } catch (_) { return localStorage; }
+  })();
+  const GUEST = store !== localStorage;
+
   function read(key, fallback) {
-    try { const v = JSON.parse(localStorage.getItem(key)); return v == null ? fallback : v; }
+    try { const v = JSON.parse(store.getItem(key)); return v == null ? fallback : v; }
     catch (_) { return fallback; }
   }
   function write(key, val) {
-    try { localStorage.setItem(key, JSON.stringify(val)); } catch (_) {}
+    try { store.setItem(key, JSON.stringify(val)); } catch (_) {}
   }
   function cleanId(value) {
     const m = String(value).match(/[?&]list=([\w-]+)/);
@@ -1001,7 +1049,7 @@
   // Aynı birleştirme kuralları geçerli; jeton yalnızca bu cihazın tarayıcısında saklanır.
   const GIST_FILE = "odak-veri.json";
   const BOOT_AT = Date.now();
-  const cloudUI = { open: false, token: "", url: "", msg: "", confirmOff: false };
+  const cloudUI = { open: false, token: "", url: "", msg: "", confirmOff: false, gt: "", gmsg: "" };
   const cloudCfg = () => { const c = read("odak.cloud", null); return c && c.t && c.g ? c : null; };
   const cloudOn = () => !!cloudCfg();
   const ghHeaders = (t, json) => Object.assign({ Authorization: "Bearer " + t, Accept: "application/vnd.github+json" }, json ? { "Content-Type": "application/json" } : {});
@@ -1011,6 +1059,11 @@
   function cloudLink() {
     const c = cloudCfg();
     return c && c.u ? c.u.replace(/#.*$/, "") + "#bulut=" + b64e({ t: c.t, g: c.g }) : "";
+  }
+  // Misafir bağlantısı: ana jeton değil, ayrı (süreli) misafir jetonu taşır
+  function guestLink() {
+    const c = cloudCfg(), g = read("odak.guest", null);
+    return c && c.u && g && g.t ? c.u.replace(/#.*$/, "") + "#misafir=" + b64e({ t: g.t, g: c.g }) : "";
   }
   // Bağlantıdan ya da yalnızca koddan {t, g} çıkarır
   function cloudParse(text) {
@@ -1726,9 +1779,9 @@
     try {
       t = yt.getCurrentTime() || 0;
       playing = yt.getPlayerState() === 1;
-      if (playing) yt.pauseVideo();
     } catch (_) {}
-    noteCtx = { id: ids[idx], t: Math.floor(t), playing };
+    // Video açılırken durmaz; yazmaya başlayınca durur (bkz. renderNotes). t: notun düşüldüğü an.
+    noteCtx = { id: ids[idx], t: Math.floor(t), playing, paused: false };
     renderNotes();
     notesEl.hidden = false;
     notesBtn.classList.add("active");
@@ -1742,7 +1795,7 @@
     notesBtn.classList.remove("active");
     const c = noteCtx;
     noteCtx = null;
-    if (c && c.playing && ready && mode === "work") { try { yt.playVideo(); } catch (_) {} }
+    if (c && c.paused && ready && mode === "work") { try { yt.playVideo(); } catch (_) {} }
     updatePeek();
   }
   function toggleNotes() { if (notesEl.hidden) openNotes(); else closeNotes(); }
@@ -1761,7 +1814,13 @@
     inp.maxLength = 300;
     inp.autocomplete = "off";
     inp.spellcheck = false;
-    inp.placeholder = fmtClock(noteCtx.t) + " anına not yaz, Enter ile kaydet";
+    inp.placeholder = fmtClock(noteCtx.t) + (noteCtx.playing ? " anına not yaz · Enter: kaydet ve devam et" : " anına not yaz, Enter ile kaydet");
+    inp.addEventListener("input", () => {
+      // Akış modu: video oynuyorsa yazmaya başlayınca dur
+      if (noteCtx && noteCtx.playing && !noteCtx.paused && inp.value) {
+        try { yt.pauseVideo(); noteCtx.paused = true; } catch (_) {}
+      }
+    });
     inp.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         const text = inp.value.trim();
@@ -1772,6 +1831,11 @@
         arr.sort((a, b) => a.t - b.t);
         saveState();
         highlight();
+        if (noteCtx.paused) {          // akış modu: kaydet, paneli kapat, videoyu devam ettir
+          flash("Not kaydedildi · " + fmtClock(noteCtx.t));
+          closeNotes();
+          return;
+        }
         renderNotes();
         const again = notesEl.querySelector("input");
         if (again) again.focus();
@@ -2606,6 +2670,80 @@
       if (changed && !pop.hidden && !cloudUI.open) renderPop();
     }).catch(() => {});
   }
+  // Telefon tarafı: okul/kütüphane bilgisayarı için misafir bağlantısı
+  function renderGuestShare(say) {
+    const c = cloudCfg();
+    if (!c || !c.u) return;
+    const g = read("odak.guest", null);
+    if (!g || !g.t) {
+      const s = say("Okul ya da kütüphane bilgisayarı için misafir bağlantısı: ana jetonun bilgisayara hiç gitmez, ayrı ve süreli bir jeton kullanılır. ");
+      const a = document.createElement("a");
+      a.href = "https://github.com/settings/tokens/new?scopes=gist&description=Odak-misafir&default_expires_at=7";
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = "Misafir jetonu oluştur";
+      s.appendChild(a);
+      s.append(" (gist izni, 7 gün süreli), sonra buraya yapıştır:");
+      const i = document.createElement("input");
+      i.type = "text";
+      i.className = "cin";
+      i.placeholder = "ghp_…  (misafir jetonu)";
+      i.value = cloudUI.gt;
+      i.autocomplete = "off";
+      i.setAttribute("autocapitalize", "off");
+      i.setAttribute("autocorrect", "off");
+      i.spellcheck = false;
+      i.addEventListener("input", () => { cloudUI.gt = i.value; });
+      pop.appendChild(i);
+      const m = document.createElement("div");
+      m.className = "cmsg";
+      m.textContent = cloudUI.gmsg;
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = "Kaydet";
+      b.addEventListener("click", async () => {
+        const set = (t) => { cloudUI.gmsg = t; m.textContent = t; };
+        try {
+          const tk = cloudUI.gt.trim();
+          if (!/^[A-Za-z0-9_]{20,}$/.test(tk)) throw new Error("Jeton biçimi yanlış görünüyor.");
+          if (tk === c.t) throw new Error("Bu, ana jetonla aynı. Ayrı bir misafir jetonu oluştur.");
+          set("Deneniyor…");
+          const [rg, ru] = await Promise.all([
+            fetchTimed("https://api.github.com/gists/" + c.g, { headers: ghHeaders(tk) }, 15000),
+            fetchTimed("https://api.github.com/user", { headers: ghHeaders(tk) }, 15000)
+          ]);
+          if (ru.status === 401) throw new Error("Jeton geçersiz ya da süresi dolmuş.");
+          if (!rg.ok || !ru.ok) throw new Error("GitHub hatası: " + (rg.ok ? ru.status : rg.status));
+          const jg = await rg.json(), ju = await ru.json();
+          if (!jg.owner || jg.owner.login !== ju.login) throw new Error("Bu jeton, kaydın durduğu GitHub hesabına ait değil.");
+          const sc = ru.headers.get("x-oauth-scopes");
+          if (sc !== null && !/\bgist\b/.test(sc)) throw new Error("Jetonda gist izni yok.");
+          write("odak.guest", { t: tk });
+          cloudUI.gt = ""; cloudUI.gmsg = "";
+          renderPop();
+        } catch (e) {
+          set((e && e.message) || "Kaydedilemedi.");
+        }
+      });
+      pop.appendChild(b);
+      pop.appendChild(m);
+      return;
+    }
+    popRow("Misafir bağlantısı", [
+      ["Paylaş", async () => {
+        const link = guestLink();
+        if (!link) return;
+        if (navigator.share) { try { await navigator.share({ url: link }); } catch (_) {} return; }
+        try { await navigator.clipboard.writeText(link); flash("Misafir bağlantısı kopyalandı."); } catch (_) { flash("Kopyalanamadı."); }
+      }],
+      ["Kopyala", async () => {
+        try { await navigator.clipboard.writeText(guestLink()); flash("Misafir bağlantısı kopyalandı."); } catch (_) { flash("Kopyalanamadı."); }
+      }],
+      ["Jetonu sil", () => { write("odak.guest", null); renderPop(); }]
+    ]);
+    say("Bilgisayarda bağlantıyı aç. Bitince sekmeyi kapat ve WhatsApp Web'den çıkış yap.");
+  }
+
   function renderCloud() {
     const c = cloudCfg();
     const row = document.createElement("div");
@@ -2627,6 +2765,18 @@
     if (c) {
       btn.textContent = "Şimdi";
       btn.addEventListener("click", () => { val.textContent = "…"; syncNow(true); });
+      if (GUEST) {
+        say("Misafir oturumu: bu sekmeyi kapatınca kayıtlar ve jeton bu bilgisayardan silinir. İşin bitince WhatsApp Web'den de çıkış yap.");
+        const end = document.createElement("button");
+        end.type = "button";
+        end.textContent = "Oturumu bitir";
+        end.addEventListener("click", () => {
+          try { sessionStorage.clear(); } catch (_) {}
+          location.replace(location.pathname + location.search);
+        });
+        pop.appendChild(end);
+        return;
+      }
       const link = cloudLink();
       if (link) {
         say("Başka cihazı bağla: kamerayla okut. Telefonda ana ekrana eklemeden önce bu bağlantıyla aç.");
@@ -2642,6 +2792,7 @@
       } else {
         say("Başka cihaz için yayın adresi gerekli: bağlantıyı kesip adresle yeniden bağlan.");
       }
+      renderGuestShare(say);
       const off = document.createElement("button");
       off.type = "button";
       off.textContent = cloudUI.confirmOff ? "Emin misin? Tekrar dokun" : "Bağlantıyı kes";
