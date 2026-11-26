@@ -291,6 +291,7 @@
   .pop { max-height: 62vh; max-height: 62dvh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) var(--bg); }
   .mini { height: 2px; background: var(--surf); border-radius: 2px; overflow: hidden; }
   .mini i { display: block; height: 100%; background: var(--blue2); }
+  .cr > span:first-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cr .ct { font-size: 12px; color: var(--c3); text-align: right; font-variant-numeric: tabular-nums; }
 
   /* Mola ekranı: video örtülür, sadece kalan süre görünür */
@@ -1518,23 +1519,23 @@
   function renderMenu() {
     yolTick();
     menuEl.textContent = "";
-    const bp = bugunPlan();
+    const bp = bugunPlan(), sec0 = document.createElement("div");
     if (bp.items.length) {
-      const sec = document.createElement("div"), h = document.createElement("h3");
+      const sec = sec0, h = document.createElement("h3");
       h.textContent = "Bugün · " + TEMA_AD[bp.th] + " · " + Math.round((state.time[dayKey(new Date())] || 0) / 60) + "/" + BUGUN_DK + " dk";
       sec.appendChild(h);
       const due = dueReviews().length;
       if (due) {
         const r = document.createElement("div");
         r.style.cssText = "padding:6px 4px;font-size:13px;color:var(--c8)";
-        r.textContent = "Tekrar zamanı: " + due + " video (İlerleme panelinde)";
+        r.textContent = "Tekrar: " + due + " video · İlerleme'de";
         sec.appendChild(r);
       }
       bp.items.forEach((it) => {
         const key = pidOf(it.i), id = (lists[key] || [])[it.k], b = document.createElement("button");
         const nm = document.createElement("span"), mt = document.createElement("span");
         b.type = "button";
-        nm.textContent = ((titles[id] || "Video " + (it.k + 1))).slice(0, 44);
+        nm.textContent = (titles[id] || courses[it.i].name.split(" ")[0] + " · " + (it.k + 1) + ". video").slice(0, 44);
         mt.className = "meta";
         mt.textContent = courses[it.i].name.split(" ")[0] + " · " + it.m + " dk";
         b.append(nm, mt);
@@ -1545,7 +1546,6 @@
         });
         sec.appendChild(b);
       });
-      menuEl.appendChild(sec);
     }
     const top = document.createElement("button");
     top.type = "button";
@@ -1555,7 +1555,8 @@
     tm.textContent = yolEdit ? "bitti" : "düzenle";
     top.append(tn, tm);
     top.addEventListener("click", () => { yolEdit = !yolEdit; renderMenu(); });
-    menuEl.appendChild(top);
+    sec0.appendChild(top);
+    menuEl.appendChild(sec0);
     const yolGroups = YOL.map((v) => ({ name: YOL_AD[v], items: courses.map((c, i) => i).filter((i) => yolOf(i) === v) })).filter((g) => g.items.length);
     yolGroups.forEach((g) => {
       const sec = document.createElement("div");
